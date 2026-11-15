@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Air Boomber — Flight Simulator</title>
+<link rel="stylesheet" href="css/style.css?v=19">
+</head>
+<body>
+<canvas id="gl"></canvas>
+<canvas id="hud"></canvas>
+<div id="flash"></div>
+<div id="vig"></div>
+
+<div id="loading"><h1>AIR BOOMBER</h1><p>Building the world…</p></div>
+
+<div id="topbar"><span id="money">$0</span><span id="sortie"></span></div>
+<div id="fps" class="hidden">-- FPS</div>
+<div id="objective" class="hidden"></div>
+<div id="flightUI" class="hidden"><div id="msgs"></div></div>
+
+<div id="hangar" class="hidden">
+  <header><h1>AIR BOOMBER</h1><span>Hangar — choose your aircraft</span></header>
+  <button id="btnPrev" class="nav" aria-label="Previous aircraft">&#9664;</button>
+  <button id="btnNext" class="nav" aria-label="Next aircraft">&#9654;</button>
+  <section class="card">
+    <div class="count" id="hCount"></div>
+    <h2 id="hName"></h2>
+    <div class="role" id="hRole"></div>
+    <div class="stats" id="hStats"></div>
+    <div id="hBars"></div>
+    <h3>Loadout</h3>
+    <ul id="hWeapons"></ul>
+    <div class="price" id="hPrice"></div>
+    <div class="actions">
+      <button id="btnBuy" class="buy"></button>
+      <button id="btnFly" class="primary">Take off from runway</button>
+      <button id="btnAir">Air start near chosen city</button>
+    </div>
+    <h3>Strike mission</h3>
+    <label class="sand sel">Level <select id="mLevel"></select></label>
+    <label class="sand sel">Target <select id="mTarget"></select></label>
+    <label class="sand sel">Assistance <select id="mAssist"><option value="0">None</option><option value="1">Target markers</option><option value="2">Markers + 2 wingmen</option></select></label>
+    <label class="sand"><input type="checkbox" id="mFlares"> Refill flares after each site you destroy</label>
+    <div class="brief" id="mBrief"></div>
+    <button id="btnMission" class="wide go">Start mission</button>
+    <h3>Free flight</h3>
+    <label class="sand sel">Departure airport <select id="startAp"></select></label>
+    <label class="sand sel">Air start near <select id="startCity"></select></label>
+    <label class="sand"><input type="checkbox" id="defence"> City air defence (missile sites fire at you)</label>
+    <label class="sand"><input type="checkbox" id="sandbox"> Sandbox: unlock every aircraft</label>
+    <button id="btnSettings" class="wide">Graphics settings</button>
+    <button id="btnResetCity" class="link">Rebuild the city</button>
+  </section>
+  <footer>◀ ▶ switch aircraft · drag to look around · Enter to fly</footer>
+</div>
+
+<div id="help" class="hidden">
+  <button id="btnHelpClose" aria-label="Close help">×</button>
+  <h3>Controls</h3>
+  <table>
+    <tr><td>W / S &nbsp;or&nbsp; ↑ / ↓</td><td>Pitch down / up</td></tr>
+    <tr><td>A / D &nbsp;or&nbsp; ← / →</td><td>Roll (steer on ground)</td></tr>
+    <tr><td>Q / E</td><td>Rudder</td></tr>
+    <tr><td>Shift / Z</td><td>Throttle up / down (full = afterburner)</td></tr>
+    <tr><td>G · F · B</td><td>Gear · flaps · brakes / speed brake</td></tr>
+    <tr><td>Space · X</td><td>Release bomb · switch weapon</td></tr>
+    <tr><td>C</td><td>Flares</td></tr>
+    <tr><td>Mouse</td><td>Look around (click to capture) · wheel zoom · right-click recentre</td></tr>
+    <tr><td>V</td><td>Cockpit / external view</td></tr>
+    <tr><td>N · M · P · R · H</td><td>Map range (6 / 12 / 30 / 60 km) · mute · pause · restart · this help</td></tr>
+  </table>
+  <p>Take-off: flaps down, full throttle, pull back gently at rotation speed, then gear up (G) and flaps up (F).</p>
+</div>
+
+<div id="pause" class="overlay hidden"><div class="box"><h2>Paused</h2><button id="btnResume" class="primary">Resume</button><button id="btnSettings2">Graphics settings</button><button id="btnHangar">Return to hangar</button></div></div>
+<div id="summary" class="overlay hidden"><div class="box"><h2 id="sumTitle"></h2><p id="sumText"></p><button id="btnAgain" class="primary">Fly again</button><button id="btnSumHangar">Hangar</button></div></div>
+
+<div id="settings" class="overlay hidden"><div class="box wide">
+  <h2>Graphics settings</h2>
+  <div class="row"><label for="gPreset">Quality preset</label><select id="gPreset"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option><option value="custom">Custom</option></select></div>
+  <div class="row"><label for="gScale">Resolution scale</label><input type="range" id="gScale" min="40" max="200" step="5"><span id="gScaleV"></span></div>
+  <div class="row note" id="gRes"></div>
+  <div class="row"><label for="gView">City view distance</label><input type="range" id="gView" min="20" max="90" step="2"><span id="gViewV"></span></div>
+  <div class="row"><label for="gFx">Smoke and fire detail</label><input type="range" id="gFx" min="20" max="200" step="10"><span id="gFxV"></span></div>
+  <div class="row"><label><input type="checkbox" id="gShadows"> Shadows</label><label><input type="checkbox" id="gSea"> Animated sea</label><label><input type="checkbox" id="gAA"> Anti-aliasing</label></div>
+  <h3>Frame rate</h3>
+  <div class="row"><label for="gFpsCap">FPS limit</label><select id="gFpsCap"><option value="0">Unlimited (monitor refresh)</option><option value="30">30</option><option value="45">45</option><option value="60">60</option><option value="90">90</option><option value="120">120</option><option value="144">144</option></select></div>
+  <div class="row"><label><input type="checkbox" id="gShowFps"> Show FPS counter</label></div>
+  <h3>Graphics card</h3>
+  <div class="row"><label for="gPower">GPU preference</label><select id="gPower"><option value="high-performance">High performance (dedicated GPU)</option><option value="default">Let the browser decide</option><option value="low-power">Power saving (integrated GPU)</option></select></div>
+  <div class="row note">In use now: <b id="gGpu"></b></div>
+  <button id="gReload" class="primary hidden">Reload to apply anti-aliasing / GPU change</button>
+  <button id="btnSettingsClose">Close</button>
+</div></div>
+
+<script src="lib/three.min.js?v=19"></script>
+<script src="js/data.js?v=19"></script>
+<script src="js/physics.js?v=19"></script>
+<script src="js/models.js?v=19"></script>
+<script src="js/world.js?v=19"></script>
+<script src="js/city.js?v=19"></script>
+<script src="js/effects.js?v=19"></script>
+<script src="js/audio.js?v=19"></script>
+<script src="js/hud.js?v=19"></script>
+<script src="js/game.js?v=19"></script>
+</body>
+</html>
