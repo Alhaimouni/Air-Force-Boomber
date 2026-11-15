@@ -82,3 +82,9 @@ button.wide:hover { background: #28323d; }
 .brief { margin: 10px 0 4px; font-size: 13px; line-height: 1.5; color: #c4cfd9; }
 button.wide.go { margin-top: 6px; background: #8a3a12; border-color: #c9601f; font-weight: 600; font-size: 15px; }
 button.wide.go:hover { background: #a3481a; }
+.swatches { display: flex; align-items: center; gap: 6px; margin: 10px 0 2px; min-height: 20px; font-size: 12px; color: #8fa0b0; }
+.swatches i { width: 22px; height: 16px; border: 1px solid #55606b; display: inline-block; }
+.swatches span { margin-left: 4px; }
+.cols { display: flex; gap: 6px; }
+.cols input { width: 46px; height: 28px; padding: 0; border: 1px solid #3a4550; background: #1b222a; cursor: pointer; }
+#paintBox .wide { margin-top: 8px; }

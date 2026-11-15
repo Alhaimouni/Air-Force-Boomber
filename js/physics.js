@@ -20,6 +20,8 @@
       this.onGround = false; this.crashed = false; this.crashReason = '';
       this.alpha = 0; this.beta = 0; this.mach = 0; this.V = 0; this.ias = 0; this.nz = 1; this.qbar = 0;
       this.stalled = false; this.agl = 0; this.thrust = 0; this.health = 100; this.surface = 'paved';
+      this.brakeTemp = 15; this.decel = 0; this.flapOver = false; this.gearOver = false;
+      this.vfe = spec.maxG > 5 ? 330 : 260; this.vle = spec.maxG > 5 ? 300 : 270; // flap / gear limit speeds, KIAS
       this.events = [];
     }
 
@@ -28,7 +30,7 @@
       _e.set(0, heading, 0, 'YXZ'); this.q.setFromEuler(_e);
       this.vel.set(0, 0, -speed).applyQuaternion(this.q);
       this.w.set(0, 0, 0);
-      this.crashed = false; this.health = 100; this.events.length = 0;
+      this.crashed = false; this.health = 100; this.events.length = 0; this.brake = 0; this.brakeTemp = 15; this.decel = 0;
       if (speed > 0) {
         this.throttle = 0.7; this.rpm = 0.7; this.gear = 0; this.gearTarget = 0; this.flaps = 0; this.flapsTarget = 0; this.onGround = false;
       } else {
@@ -52,7 +54,7 @@
       this.throttle = clamp(this.throttle + input.throttleDelta * dt, 0, 1);
       this.gear = cr(this.gear, this.gearTarget, 0.35);
       this.flaps = cr(this.flaps, this.flapsTarget, 0.3);
-      this.brake = input.brake ? 1 : 0;
+      this.brake = cr(this.brake, input.brake ? 1 : 0, 3.2); // brake pressure / speed-brake actuator
 
       const hasAB = s.thrustAB > 0;
       const dryCmd = hasAB ? Math.min(this.throttle / 0.9, 1) : this.throttle;
@@ -71,6 +73,10 @@
       const mach = V / atm.a, qbar = 0.5 * atm.rho * V * V;
       this.alpha = alpha; this.beta = beta; this.mach = mach; this.V = V; this.qbar = qbar;
       this.ias = V * Math.sqrt(atm.rho / 1.225);
+      // limit speeds: flaps blow back one notch when badly oversped (load relief), the gear only buffets
+      const kias = this.ias * G.KTS;
+      this.flapOver = this.flaps > 0.08 && kias > this.vfe; this.gearOver = this.gear > 0.08 && kias > this.vle;
+      if (this.flapsTarget > 0 && kias > this.vfe * 1.12 && this.flaps - this.flapsTarget < 0.08) { this.flapsTarget = Math.max(0, this.flapsTarget - 0.5); this.events.push({ type: 'flaprelief' }); }
 
       _fwd.set(0, 0, -1).applyQuaternion(this.q);
       _up.set(0, 1, 0).applyQuaternion(this.q);
@@ -98,7 +104,7 @@
         if (mach > s.machLimit) wave += (mach - s.machLimit) * 6;
       }
       const cd = s.CD0 + s.k * cl * cl + wave * s.CDw + this.gear * 0.022 + this.flaps * 0.035 +
-        (this.brake && !this.onGround ? 0.06 : 0) + (this.brake && this.onGround ? 0.05 : 0) + stallDrag + 0.6 * beta * beta +
+        this.brake * (this.onGround ? 0.05 : 0.065) + (this.gearOver ? 0.01 : 0) + stallDrag + 0.6 * beta * beta +
         (this.health < 50 ? 0.01 : 0);
 
       const L = qbar * s.S * cl, D = qbar * s.S * cd, Y = -qbar * s.S * 1.1 * beta;
@@ -163,8 +169,11 @@
         const surf = world.surfaceAt(this.pos.x, this.pos.z);
         this.surface = surf;
         if (surf === 'water') { this.crash('Ditched in the sea'); return; }
-        const mu = (surf === 'paved' ? 0.018 : 0.07) + this.brake * (surf === 'paved' ? 0.45 : 0.3);
+        const fade = 1 - clamp((this.brakeTemp - 520) / 700, 0, 0.45); // hot brakes fade
+        const mu = (surf === 'paved' ? 0.018 : 0.07) + this.brake * (surf === 'paved' ? 0.45 : 0.3) * fade;
         const wow = clamp(1 - this.nz, 0, 1);
+        this.decel = (V > 0.5 ? mu * g0 * wow : 0) - T / s.mass;
+        this.brakeTemp += this.brake * fade * wow * V * 0.95 * dt; // kinetic energy turned into heat in the discs
         // decompose horizontal velocity along heading
         _t.set(_fwd.x, 0, _fwd.z).normalize();
         const vf = this.vel.x * _t.x + this.vel.z * _t.z;
@@ -177,6 +186,8 @@
         this.vel.x = _t.x * vf2 + lx; this.vel.z = _t.z * vf2 + lz;
       }
 
+      if (!this.onGround) this.decel = 0;
+      this.brakeTemp += (15 - this.brakeTemp) * (0.012 + V * 0.0004) * dt; // air cooling
       // integrate linear
       this.vel.addScaledVector(_F, dt / s.mass);
       this.pos.addScaledVector(this.vel, dt);
@@ -249,7 +260,7 @@
       this.onGround = true; this.body = 'earth'; this.crashed = false; this.crashReason = '';
       this.alpha = 0; this.beta = 0; this.mach = 0; this.V = 0; this.ias = 0; this.nz = 1; this.qbar = 0;
       this.stalled = false; this.agl = 0; this.thrust = 0; this.health = 100; this.surface = 'paved'; this.events = [];
-      this.moonDist = 1e9; this.gLocal = g0;
+      this.moonDist = 1e9; this.gLocal = g0; this.brakeTemp = 15; this.decel = 0;
     }
     reset(pos) {
       this.pos.copy(pos); _e.set(Math.PI / 2, 0, 0, 'YXZ'); this.q.setFromEuler(_e);
