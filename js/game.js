@@ -6,9 +6,11 @@
 
   // ---------- save
   const SAVE_KEY = 'airboomber.v1';
-  let save = { money: 0, owned: ['f16', 'a320'], sandbox: false, last: 0, defence: true, startAp: 0, startCity: 0, mLevel: 1, mLevelSel: 0, mTarget: -1, assist: 2, flareRefill: true };
+  let save = { money: 0, owned: ['f16', 'a320'], sandbox: false, last: 0, defence: true, startAp: 0, startCity: 0, mLevel: 1, mLevelSel: 0, mTarget: -1, assist: 2, flareRefill: true, paint: {} };
   try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && s.owned) save = Object.assign(save, s); } catch (e) { /* no save */ }
   const persist = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) { /* ignore */ } };
+  if (!save.paint || typeof save.paint !== 'object') save.paint = {};
+  const paintOf = (id) => save.paint[id] || {};
   const owns = (id) => save.sandbox || save.owned.indexOf(id) >= 0 || G.aircraftById(id).price === 0;
 
   // ---------- renderer / scenes
@@ -102,7 +104,8 @@
     const kc = k.shadow.camera; kc.left = -45; kc.right = 45; kc.top = 45; kc.bottom = -45; kc.far = 200; hs.add(k);
     const r = new T.DirectionalLight(0x9fc0ff, 1.0); r.position.set(-50, 30, -40); hs.add(r);
   })();
-  let hModel = null, hIdx = clamp(save.last || 0, 0, G.AIRCRAFT.length - 1), hAng = 0.7, hPitch = 0.22, hDrag = false;
+  let hModel = null, hIdx = clamp(save.last || 0, 0, G.AIRCRAFT.length - 1), hAng = 0.7, hPitch = 0.22, hDrag = false, hZoom = 1;
+  g.hView = (a, p, z) => { hAng = a; hPitch = p; hZoom = z || 1; };
 
   function resize() {
     const W = g.W = window.innerWidth, H = g.H = window.innerHeight, dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -160,8 +163,7 @@
 
   function showHangarAircraft() {
     const s = G.AIRCRAFT[hIdx];
-    if (hModel) hs.remove(hModel);
-    hModel = G.buildAircraft(s, { noCockpit: true, detail: true }); hModel.position.y = s.gearH; if (s.rocket) { hModel.rotation.x = Math.PI / 2; hModel.scale.setScalar(0.8); hModel.position.y = s.gearH * 0.8; } hs.add(hModel);
+    buildHangarModel(); paintUI();
     $('hName').textContent = s.name; $('hRole').textContent = s.role + ' · ' + s.origin; $('hStats').textContent = s.stats;
     const tw = (s.thrustAB || s.thrustDry) / (s.mass * 9.81);
     const bars = [['Top speed', s.machLimit / 2.35, 'Mach ' + s.machLimit], ['Thrust / weight', tw / 1.25, tw.toFixed(2)], ['Agility', s.rollRate / 4.2 * 0.6 + s.maxG / 9 * 0.4, s.maxG + ' g'],
@@ -176,6 +178,31 @@
     $('hCount').textContent = (hIdx + 1) + ' / ' + G.AIRCRAFT.length;
     save.last = hIdx; persist(); refreshMoney();
   }
+  function buildHangarModel() {
+    const s = G.AIRCRAFT[hIdx];
+    if (hModel) hs.remove(hModel);
+    hModel = G.buildAircraft(s, { noCockpit: true, detail: true, paint: paintOf(s.id) }); hModel.position.y = s.gearH; if (s.rocket) { hModel.rotation.x = Math.PI / 2; hModel.scale.setScalar(0.8); hModel.position.y = s.gearH * 0.8; } hs.add(hModel);
+    hTest = -1; g.hModel = hModel;
+  }
+  // paint shop: scheme, custom colours and pattern, finish, canopy tint (airliner: livery only)
+  const opts = (list, sel) => list.map((o) => `<option value="${o[0]}"${String(o[0]) === String(sel) ? ' selected' : ''}>${o[1]}</option>`).join('');
+  function paintUI() {
+    const s = G.AIRCRAFT[hIdx], p = paintOf(s.id), air = s.id === 'a320';
+    $('paintBox').classList.toggle('hidden', !!s.rocket);
+    if (s.rocket) return;
+    const sc = air ? null : (G.PAINTS.find((q) => q.id === p.scheme) || G.PAINTS[0]);
+    $('pScheme').innerHTML = air ? opts(G.LIVERIES.map((n, i) => [i, n + ' livery']), p.livery || 0) : opts(G.PAINTS.map((q) => [q.id, q.name]), sc.id);
+    $('pCustom').classList.toggle('hidden', air || sc.id !== 'custom');
+    $('pFinishRow').classList.toggle('hidden', air); $('pGlassRow').classList.toggle('hidden', air);
+    $('pPat').innerHTML = opts(G.PATTERNS, p.pat || 'solid'); $('pC1').value = p.c1 || '#7c858e'; $('pC2').value = p.c2 || '#3f4a55';
+    $('pFinish').innerHTML = opts(G.FINISHES, p.finish || 'std'); $('pGlass').innerHTML = opts(G.GLASSES, p.glass || 'def');
+    const cols = air ? [] : sc.id === 'custom' ? ((p.pat || 'solid') === 'solid' ? [p.c1 || '#7c858e'] : [p.c1 || '#7c858e', p.c2 || '#3f4a55']) : (sc.cols || []);
+    $('pSw').innerHTML = cols.map((c) => `<i style="background:${c}"></i>`).join('') + (cols.length ? `<span>${sc.id === 'custom' ? (G.PATTERNS.find((q) => q[0] === (p.pat || 'solid')) || [0, ''])[1] : ({ solid: 'Solid colour', blotch: 'Blotch camouflage', splinter: 'Splinter camouflage', digital: 'Digital camouflage', stripes: 'Stripe camouflage' })[sc.pat]}</span>` : (air ? '' : '<span>Original service colours</span>'));
+  }
+  function setPaint(k, v) {
+    const id = G.AIRCRAFT[hIdx].id; save.paint[id] = Object.assign({}, save.paint[id]); save.paint[id][k] = v; persist(); buildHangarModel(); paintUI();
+  }
+  let hTest = -1;
   function toHangar() {
     g.state = 'hangar'; if (document.pointerLockElement) document.exitPointerLock();
     ['pause', 'summary', 'help'].forEach((id) => $(id).classList.add('hidden'));
@@ -188,7 +215,7 @@
     const s = g.spec = G.AIRCRAFT[hIdx];
     G.audio.init(); G.audio.setAircraft(s);
     if (g.model) scene.remove(g.model);
-    g.model = G.buildAircraft(s); scene.add(g.model);
+    g.model = G.buildAircraft(s, { paint: paintOf(s.id) }); scene.add(g.model);
     g.flight = s.rocket ? new G.RocketFlight(s) : new G.Flight(s);
     if (s.rocket) air = false;
     const ct = g.targetCity = G.CITIES[save.startCity] || G.CITIES[0];
@@ -204,6 +231,7 @@
     else if (!air) g.flight.reset(new V3(ap.x, s.gearH, ap.z + 1650), 0, 0);
     g.ammo = s.weapons.map((w) => ({ def: G.WEAPONS[w.type], count: w.count, max: w.count })); g.weaponIdx = 0; g.flares = s.flares;
     g.state = 'fly'; g.time = 0; g.sortie = 0; g.hasFlown = !!air; g.view = 0; g.camYaw = 0; g.camPitch = 0; g.zoom = 1; g.dropT = 0; g.flareT = 0; g.passT = 0; g.deadT = 0;
+    g.gearPrev = g.flight.gear; g.flapPrev = g.flight.flaps; g.flapSet = g.flight.flapsTarget; g.hotBrakes = false; g.flapOverMsg = false; g.gearMove = g.flapMove = false; g.bump = 0; g.buffet = 0; g.headY = 0; g.gearWarn = false; g.squealT = 0;
     g.hasFlownMission = false; g.lastWasMission = false; $('btnAgain').textContent = 'Fly again'; g.helpHidden = false; g.camFwd = new V3(0, 0, -1); g.model.visible = true; g.shock = null; g.samGrace = 25;
     g.missiles.forEach((m) => scene.remove(m.mesh)); g.missiles.length = 0;
     clearMission(); g.diff = diffFor(curLevel()); g.flakT = 3; g.flakBursts = [];
@@ -232,8 +260,12 @@
     if (e.code === 'KeyH') $('help').classList.toggle('hidden');
     if (g.state !== 'fly') return;
     const f = g.flight;
-    if (e.code === 'KeyG') { if (f.onGround) msg('Gear stays down on the ground'); else { f.gearTarget = f.gearTarget ? 0 : 1; G.audio.clunk(); msg('Gear ' + (f.gearTarget ? 'down' : 'up')); } }
-    if (e.code === 'KeyF') { f.flapsTarget = f.flapsTarget ? 0 : 1; msg('Flaps ' + (f.flapsTarget ? 'down' : 'up')); }
+    if (e.code === 'KeyG') { if (f.onGround) msg('Gear stays down on the ground'); else if (!g.spec.rocket) { f.gearTarget = f.gearTarget ? 0 : 1; G.audio.clunk(); msg('Gear ' + (f.gearTarget ? 'coming down' : 'retracting') + (f.gearTarget && f.ias * G.KTS > f.vle ? ' — above the ' + f.vle + ' kt gear limit' : ''), f.gearTarget && f.ias * G.KTS > f.vle ? 'bad' : ''); } }
+    if (e.code === 'KeyF' && !g.spec.rocket) { // three flap settings: up -> take-off -> landing
+      f.flapsTarget = f.flapsTarget >= 1 ? 0 : f.flapsTarget + 0.5;
+      if (f.flapsTarget > 0 && f.ias * G.KTS > f.vfe * 1.12) { f.flapsTarget = 0; msg('Too fast for flaps — slow below ' + f.vfe + ' kt', 'bad'); }
+      else msg('Flaps ' + (f.flapsTarget >= 1 ? 'full — landing' : f.flapsTarget > 0 ? 'half — take-off' : 'up'));
+    }
     if (e.code === 'KeyV') { g.view = 1 - g.view; g.camYaw = 0; g.camPitch = 0; }
     if (e.code === 'KeyX' && g.ammo.length) { g.weaponIdx = (g.weaponIdx + 1) % g.ammo.length; msg('Selected ' + g.currentWeapon().def.name); G.audio.beep(900, 0.05, 0.1); }
     if (e.code === 'KeyR') { startFlight(false); }
@@ -251,19 +283,24 @@
   window.addEventListener('mouseup', () => { mouseDown = false; hDrag = false; });
   hudC.addEventListener('contextmenu', (e) => e.preventDefault());
   window.addEventListener('mousemove', (e) => {
-    if (g.state === 'hangar') { if (hDrag) { hAng -= e.movementX * 0.006; hPitch = clamp(hPitch + e.movementY * 0.004, 0.03, 1.1); } return; }
+    if (g.state === 'hangar') { if (hDrag) { hAng -= e.movementX * 0.006; hPitch = clamp(hPitch + e.movementY * 0.004, -0.12, 1.1); } return; }
     if (g.state !== 'fly' && g.state !== 'dead') return;
     if (document.pointerLockElement === hudC || mouseDown) {
       g.camYaw -= e.movementX * 0.0032; g.camPitch = clamp(g.camPitch - e.movementY * 0.0032, -1.45, 1.45);
       if (g.view === 1) g.camYaw = clamp(g.camYaw, -2.7, 2.7);
     }
   });
-  window.addEventListener('wheel', (e) => { g.zoom = clamp((g.zoom || 1) * (e.deltaY > 0 ? 1.12 : 0.89), 0.45, 4); }, { passive: true });
+  window.addEventListener('wheel', (e) => { if (g.state === 'hangar') { if (!e.target.closest || !e.target.closest('.card')) hZoom = clamp(hZoom * (e.deltaY > 0 ? 1.1 : 0.9), 0.35, 1.5); return; } g.zoom = clamp((g.zoom || 1) * (e.deltaY > 0 ? 1.12 : 0.89), 0.45, 4); }, { passive: true });
   function resume() { g.state = 'fly'; $('pause').classList.add('hidden'); }
 
   $('btnPrev').onclick = () => { hIdx = (hIdx + G.AIRCRAFT.length - 1) % G.AIRCRAFT.length; showHangarAircraft(); };
   $('btnNext').onclick = () => { hIdx = (hIdx + 1) % G.AIRCRAFT.length; showHangarAircraft(); };
   $('btnBuy').onclick = () => { const s = G.AIRCRAFT[hIdx]; if (save.money >= s.price) { save.money -= s.price; save.owned.push(s.id); persist(); G.audio.init(); G.audio.cash(); showHangarAircraft(); } };
+  $('pScheme').onchange = (e) => setPaint(G.AIRCRAFT[hIdx].id === 'a320' ? 'livery' : 'scheme', G.AIRCRAFT[hIdx].id === 'a320' ? +e.target.value : e.target.value);
+  $('pPat').onchange = (e) => setPaint('pat', e.target.value);
+  $('pC1').onchange = (e) => setPaint('c1', e.target.value); $('pC2').onchange = (e) => setPaint('c2', e.target.value);
+  $('pFinish').onchange = (e) => setPaint('finish', e.target.value); $('pGlass').onchange = (e) => setPaint('glass', e.target.value);
+  $('btnTest').onclick = () => { hTest = 0; };
   $('btnFly').onclick = () => startFlight(false);
   $('btnAir').onclick = () => startFlight(true);
   $('sandbox').onchange = (e) => { save.sandbox = e.target.checked; persist(); showHangarAircraft(); };
@@ -595,7 +632,7 @@
     targets.forEach((t) => { t.cool = 8 + Math.random() * 10; });
     if (save.assist >= 2) {
       const sp = G.aircraftById(g.spec.span > 22 ? 'f16' : g.spec.id);
-      for (let i = 0; i < 2; i++) { const model = G.buildAircraft(sp, { noCockpit: true, lights: true }); if (model.userData.gear) model.userData.gear.visible = false; scene.add(model); g.wing.push({ model, a: i * 3.14, next: 50 + i * 20 }); }
+      for (let i = 0; i < 2; i++) { const model = G.buildAircraft(sp, { noCockpit: true, lights: true, paint: sp === g.spec ? paintOf(sp.id) : null }); if (model.userData.gear) model.userData.gear.visible = false; scene.add(model); g.wing.push({ model, a: i * 3.14, next: 50 + i * 20 }); }
     }
     const d = Math.hypot(city.x - g.flight.pos.x, city.z - g.flight.pos.z);
     msg('MISSION — LEVEL ' + L + ' (' + LEVEL_NAMES[L] + '): destroy the air defences of ' + city.name, 'big');
@@ -660,13 +697,20 @@
 
   // ---------- per-frame aircraft visuals
   const s_rocket = (gm) => !!gm.spec.rocket;
+  const pose = { gear: 1, flaps: 0, brake: 0, pitch: 0, roll: 0, yaw: 0, alpha: 0, onGround: true, V: 0, rpm: 0, ab: 0, throttle: 0, steer: 0, decel: 0, bump: 0, brakeTemp: 15, gearTarget: 1, flapsTarget: 0, nz: 1 };
   function syncModel(dt) {
     const f = g.flight, m = g.model, ud = m.userData, fx = G.fx;
-    m.position.copy(f.pos); m.quaternion.copy(f.q);
-    if (ud.gear) ud.gear.visible = f.gear > 0.25;
-    if (ud.stores && g.ammo && g.ammo.length) { const a = g.ammo[0], left = Math.ceil(a.count / a.max * ud.stores.length); ud.stores.forEach((b, i) => { b.visible = i < left; }); }
     const cockpit = g.view === 1 && g.state === 'fly';
-    if (ud.cockpit) ud.cockpit.visible = cockpit; if (ud.core) ud.core.visible = !cockpit;
+    if (ud.cockpit) ud.cockpit.visible = cockpit; if (ud.core) ud.core.visible = !cockpit; if (ud.fp) ud.fp.visible = cockpit;
+    // drive every moving part from the flight state: gear legs and doors, flaps, slats, control surfaces, brakes, nozzles
+    const c = f.ctl || pose;
+    pose.gear = f.gear; pose.flaps = f.flaps; pose.brake = f.brake; pose.pitch = f.ctl ? c.pitch : 0; pose.roll = f.ctl ? c.roll : 0; pose.yaw = f.ctl ? c.yaw : 0;
+    pose.alpha = f.alpha; pose.onGround = f.onGround; pose.V = f.V; pose.rpm = f.rpm; pose.ab = f.ab; pose.throttle = f.throttle; pose.steer = clamp(pose.yaw + pose.roll * 0.6, -1, 1);
+    pose.decel = f.decel || 0; pose.bump = g.bump || 0; g.bump = 0; pose.brakeTemp = f.brakeTemp || 15; pose.gearTarget = f.gearTarget; pose.flapsTarget = f.flapsTarget; pose.nz = f.nz;
+    const A = G.poseAircraft(m, pose, g.state === 'fly' ? dt : 0);
+    m.position.copy(f.pos); m.quaternion.copy(f.q);
+    if (ud.legs) { m.position.y += A.dy; if (A.dip) { _q.setFromAxisAngle(X, -A.dip); m.quaternion.multiply(_q); } } // strut travel and brake dive
+    if (ud.stores && g.ammo && g.ammo.length) { const a = g.ammo[0], left = Math.ceil(a.count / a.max * ud.stores.length); ud.stores.forEach((b, i) => { b.visible = i < left; }); }
     (ud.flames || []).forEach((fl) => { fl.visible = f.ab > 0.03; const k = f.ab * (0.85 + Math.random() * 0.3); fl.scale.set(1, 1, Math.max(0.05, k)); });
     if (g.state !== 'fly') return;
     if (s_rocket(g) && f.ab > 0.05) {
@@ -678,6 +722,34 @@
       });
     }
     const eng = ud.engines, world = (p, zoff) => _a.set(p[0], p[1], p[2] + (zoff || 0)).applyQuaternion(f.q).add(f.pos);
+    if (!g.spec.rocket) {
+      const kias = f.ias * G.KTS, gearMove = f.gear > 0.001 && f.gear < 0.999;
+      // gear: lock clunks and status calls
+      if (f.gear >= 0.999 && g.gearPrev < 0.999) { G.audio.lock(); fx.shake = Math.max(fx.shake, 0.12); if (!f.onGround) msg('Gear down and locked — three greens', ''); }
+      if (f.gear <= 0.001 && g.gearPrev > 0.001) { G.audio.lock(); msg('Gear up and locked', ''); }
+      if (f.flaps !== g.flapPrev && Math.abs(f.flaps - f.flapsTarget) < 1e-4 && f.flapsTarget !== g.flapSet) { g.flapSet = f.flapsTarget; G.audio.clunk(); }
+      g.gearMove = gearMove; g.flapMove = Math.abs(f.flaps - f.flapsTarget) > 1e-4; g.gearPrev = f.gear; g.flapPrev = f.flaps;
+      // airframe buffet from gear, flaps and speed brakes hanging in the airflow
+      const qk = clamp(f.qbar / 22000, 0, 1.2);
+      g.buffet = qk * (f.gear * 0.45 + (f.onGround ? 0 : f.brake * 0.8) + f.flaps * 0.2) + (f.flapOver ? 0.35 : 0) + (f.gearOver ? 0.4 : 0) + (gearMove && !f.onGround ? 0.12 : 0);
+      // vapour streaming off the flap ends when the wing is working hard
+      if (ud.flapTips && f.flaps > 0.3 && !f.onGround && f.ias > 55 && (f.nz > 1.5 || f.alpha > 0.13) && f.pos.y < 6000) ud.flapTips.forEach((tp) => { if (Math.random() < 0.7) { const p = world(tp); fx.trail(p.x, p.y, p.z, 0.5 + f.flaps * 0.5, 0.22, 0.5); } });
+      if (ud.legs && f.onGround) {
+        const hot = f.brakeTemp > 520, hard = f.brake > 0.5 && f.V > 28;
+        if (hard || hot) ud.legs.forEach((l) => {
+          if (l.nose) return;
+          _a.set(l.x, -g.spec.gearH + 0.35, l.root.position.z).applyQuaternion(f.q).add(f.pos);
+          if (hard && Math.random() < 0.55) fx.smoke.spawn(_a.x, _a.y, _a.z, f.vel.x * 0.35, 1.2, f.vel.z * 0.35, 1.3, 0.9, 5, 0.86, 0.86, 0.88, 0.22 + clamp(f.V / 200, 0, 0.3), 0.9, 0);
+          if (hot && Math.random() < 0.25) fx.smoke.spawn(_a.x, _a.y, _a.z, 0, 1.6, 0, 2.6, 0.6, 3.5, 0.7, 0.7, 0.72, clamp((f.brakeTemp - 480) / 600, 0.05, 0.4), 0.4, -0.6);
+        });
+        g.squealT -= dt; if (hard && f.V > 45 && g.squealT <= 0) { g.squealT = 0.9; G.audio.squeal(); }
+        if (hot && !g.hotBrakes) { g.hotBrakes = true; msg('Hot brakes — ' + Math.round(f.brakeTemp) + ' °C, braking is fading', 'bad'); }
+      }
+      if (f.brakeTemp < 380) g.hotBrakes = false;
+      if (f.flapOver && !g.flapOverMsg) { g.flapOverMsg = true; msg('Flap overspeed — limit ' + f.vfe + ' kt', 'bad'); } if (!f.flapOver) g.flapOverMsg = false;
+      // gear warning horn: low, slow, throttled back and the wheels are still up
+      g.gearWarn = !f.onGround && f.gearTarget < 1 && f.agl < 240 && f.vel.y < -1 && kias < 230 && f.throttle < 0.5 && g.time > 6;
+    }
     if (f.pos.y > 7500 && f.rpm > 0.3) eng.forEach((en) => { const p = world(en, 8); fx.trail(p.x, p.y, p.z, 4, 0.4, 8); });
     else if (f.rpm > 0.75 && Math.random() < 0.3) eng.forEach((en) => { const p = world(en, 2); fx.smoke.spawn(p.x, p.y, p.z, 0, 0, 0, 1.2, 1.5, 7, 0.2, 0.2, 0.2, 0.1, 0, 0); });
     if (f.nz > 5.5 || (g.audioTransonic > 0.4)) ud.tips.forEach((tp) => { const p = world(tp); fx.trail(p.x, p.y, p.z, 1.2, 0.35, 0.7); });
@@ -695,13 +767,16 @@
   function updateCamera(dt) {
     const f = g.flight, s = g.spec, fx = G.fx;
     _fwd.set(0, 0, -1).applyQuaternion(f.q);
-    const shake = fx.shake * 1.2 + g.audioTransonic * 0.12 + (f.onGround && f.surface !== 'paved' ? clamp(f.V / 60, 0, 1) * 0.15 : 0) + (f.stalled ? 0.08 : 0);
+    const shake = fx.shake * 1.2 + g.audioTransonic * 0.12 + (g.buffet || 0) * 0.09 + (f.onGround && f.surface !== 'paved' ? clamp(f.V / 60, 0, 1) * 0.15 : 0) + (f.stalled ? 0.08 : 0);
     if (g.view === 1 && g.state === 'fly') {
-      const e = s.cam.cockpit; camera.position.set(e[0], e[1], e[2]).applyQuaternion(f.q).add(f.pos);
+      // the eye rides with the airframe (strut travel, brake dive); g-load presses the head down, lateral load leans it
+      const e = s.cam.cockpit, mq = g.model.quaternion;
+      g.headY += (clamp((f.nz - 1) * 0.006, -0.012, 0.04) - g.headY) * Math.min(1, dt * 5);
+      g.headX = (g.headX || 0) + (clamp(-f.beta * 0.25 + (f.w ? f.w.z * 0.006 : 0), -0.03, 0.03) - (g.headX || 0)) * Math.min(1, dt * 4);
+      camera.position.set(e[0] + g.headX + (Math.random() - 0.5) * shake * 0.03, e[1] - g.headY + (Math.random() - 0.5) * shake * 0.03, e[2]).applyQuaternion(mq).add(g.model.position);
       _q.setFromAxisAngle(Y, g.camYaw); _q2.setFromAxisAngle(X, g.camPitch);
-      camera.quaternion.copy(f.q).multiply(_q).multiply(_q2);
-      camera.fov = clamp(72 * Math.sqrt(g.zoom), 30, 100); camera.near = 0.08;
-      camera.position.x += (Math.random() - 0.5) * shake * 0.05; camera.position.y += (Math.random() - 0.5) * shake * 0.05;
+      camera.quaternion.copy(mq).multiply(_q).multiply(_q2);
+      camera.fov = clamp(72 * Math.sqrt(g.zoom), 30, 100); camera.near = 0.04;
     } else {
       g.camFwd.lerp(_fwd, 1 - Math.exp(-4 * dt)).normalize();
       let by = Math.atan2(-g.camFwd.x, -g.camFwd.z), bp = Math.asin(clamp(g.camFwd.y, -1, 1));
@@ -716,6 +791,7 @@
       camera.position.x += (Math.random() - 0.5) * shake; camera.position.y += (Math.random() - 0.5) * shake; camera.position.z += (Math.random() - 0.5) * shake;
     }
     camera.updateProjectionMatrix(); camera.updateMatrixWorld(); camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
+    const cpg = g.model.userData.cp; if (cpg && cpg.glass) cpg.glass.uniforms.sunV.value.copy(G.SUN).transformDirection(camera.matrixWorldInverse); // sun glint on the canopy
     sky.position.copy(camera.position); stars.position.copy(camera.position);
     const space = G.smoothstep(14000, 75000, camera.position.y);
     sky.material.uniforms.space.value = space; stars.material.opacity = G.smoothstep(0.35, 1, space);
@@ -764,13 +840,20 @@
         }
       } else if (!f.onGround) { if (g.catFired) g.cat = false; g.catFired = false; g.hooked = false; }
       f.events.forEach((ev) => {
+        if (ev.type === 'flaprelief') { msg('Flap load relief — too fast, flaps retracting', 'bad'); return; }
         if (ev.type === 'touchdown' && g.spec.rocket) {
           G.audio.touchdown(ev.sink || 1); fx.shake = Math.max(fx.shake, 0.4);
           if (ev.body === 'moon') { if (!g.moonLanded) { g.moonLanded = true; earn(5000000, 'You landed on the Moon'); msg('THE EAGLE HAS LANDED', 'big'); } }
           else if (g.hasFlown) { earn(g.spaceDone ? 600000 : 20000, g.spaceDone ? 'Returned from space and landed' : 'Rocket landed'); f.fuel = 1; msg('Refuelled', ''); }
         } else if (ev.type === 'touchdown') {
           G.audio.touchdown(ev.sink); fx.shake = Math.max(fx.shake, 0.2 + ev.sink * 0.1);
-          for (let i = 0; i < 10; i++) fx.smoke.spawn(f.pos.x + (Math.random() - 0.5) * 6, f.pos.y - g.spec.gearH + 0.4, f.pos.z, f.vel.x * 0.2, 2, f.vel.z * 0.2, 2.5, 2, 14, 0.85, 0.85, 0.85, 0.4, 0.8, 0);
+          g.bump = ev.sink; // compresses the struts
+          const legs = g.model.userData.legs || [];
+          legs.forEach((l) => { // tyre smoke where each main wheel spins up
+            if (l.nose) return; _a.set(l.x, -g.spec.gearH + 0.35, l.root.position.z).applyQuaternion(f.q).add(f.pos);
+            for (let i = 0; i < 6; i++) fx.smoke.spawn(_a.x + (Math.random() - 0.5) * 1.5, _a.y, _a.z + (Math.random() - 0.5) * 1.5, f.vel.x * 0.25, 1.5 + Math.random() * 1.5, f.vel.z * 0.25, 2.5, 1.5, 11, 0.85, 0.85, 0.85, 0.4, 0.8, 0);
+          });
+          if (!legs.length) for (let i = 0; i < 10; i++) fx.smoke.spawn(f.pos.x + (Math.random() - 0.5) * 6, f.pos.y - g.spec.gearH + 0.4, f.pos.z, f.vel.x * 0.2, 2, f.vel.z * 0.2, 2.5, 2, 14, 0.85, 0.85, 0.85, 0.4, 0.8, 0);
           if (g.hasFlown) g.landing = true;
         } else if (ev.type === 'liftoff') { g.hasFlown = true; g.landing = false; if (g.spec.rocket) { msg(ev.body === 'moon' ? 'Lift-off from the Moon' : 'LIFT-OFF', 'big'); for (let i = 0; i < 40; i++) { const a = Math.random() * 6.283, sp = 20 + Math.random() * 50; fx.smoke.spawn(f.pos.x, f.pos.y - g.spec.gearH + 2, f.pos.z, Math.cos(a) * sp, 3 + Math.random() * 10, Math.sin(a) * sp, 9 + Math.random() * 8, 20, 110, 0.9, 0.9, 0.9, 0.7, 0.5, -0.3); } } }
       });
@@ -805,7 +888,7 @@
           else earn(3000, 'Off-field landing');
         }
         g.pullUp = !f.onGround && f.vel.y < -12 && f.agl / -f.vel.y < 4.5 && f.gear < 0.9;
-        if (f.stalled) G.audio.warn('stall', dt, 0); else if (g.pullUp && !g.missiles.length) G.audio.warn('pullup', dt, 0);
+        if (f.stalled) G.audio.warn('stall', dt, 0); else if (g.pullUp && !g.missiles.length) G.audio.warn('pullup', dt, 0); else if (g.gearWarn && !g.missiles.length) G.audio.warn('gear', dt, 0);
       }
       predT -= dt; if (predT <= 0) { predT = 0.05; predictImpact(); }
     } else if (g.state === 'dead') { g.deadT += dt; g.camYaw += dt * 0.15; g.impact = null; }
@@ -814,7 +897,7 @@
     w.update(dt, camera.position); syncModel(dt); updateCamera(dt); fx.update(dt, camera.position);
     const cockpit = g.view === 1 && g.state === 'fly';
     _a.copy(camera.position).sub(f.pos).normalize();
-    G.audio.update({ rpm: f.rpm, ab: f.ab, V: f.V, mach: f.mach, cockpit, rear: _a.dot(_fwd.set(0, 0, 1).applyQuaternion(f.q)), active: g.state === 'fly', air: cockpit ? Math.max(0.5, Math.min(1, G.atmosphere(f.pos.y).rho / 0.25)) : Math.min(1, G.atmosphere(f.pos.y).rho / 0.25) }, dt);
+    G.audio.update({ rpm: f.rpm, ab: f.ab, V: f.V, mach: f.mach, cockpit, rear: _a.dot(_fwd.set(0, 0, 1).applyQuaternion(f.q)), active: g.state === 'fly', gearMove: g.gearMove, flapMove: g.flapMove, buffet: g.buffet, air: cockpit ? Math.max(0.5, Math.min(1, G.atmosphere(f.pos.y).rho / 0.25)) : Math.min(1, G.atmosphere(f.pos.y).rho / 0.25) }, dt);
     g.audioTransonic = g.state === 'fly' ? (G.audio.ctx ? G.audio.transonic || 0 : Math.exp(-Math.pow((f.mach - 1) / 0.055, 2))) : 0;
     if (G.audio.boomed) { G.audio.boomed = false; msg('SONIC BOOM — Mach 1', 'big'); fx.shake = Math.max(fx.shake, 0.6); }
     $('flash').style.opacity = clamp(fx.flash, 0, 1);
@@ -825,6 +908,16 @@
     else g.hctx.clearRect(0, 0, g.W, g.H);
   }
 
+  function renderWorld() {
+    renderer.render(scene, camera);
+    const cp = g.model && g.model.userData.cockpit;
+    if (cp && cp.visible && g.view === 1) {
+      renderer.autoClear = false; renderer.shadowMap.autoUpdate = false; renderer.clearDepth(); camera.layers.set(1);
+      renderer.render(scene, camera);
+      camera.layers.set(0); renderer.shadowMap.autoUpdate = true; renderer.autoClear = true;
+    }
+  }
+  const hPose = { gear: 1, flaps: 0, brake: 0, pitch: 0, roll: 0, yaw: 0, alpha: 0, onGround: true, V: 0, rpm: 0, ab: 0, throttle: 0, steer: 0, decel: 0, bump: 0, brakeTemp: 15, gearTarget: 1, flapsTarget: 0, nz: 0.2 };
   let last = performance.now(), fpsN = 0, fpsT = performance.now(), navT = 0;
   function frame(now) {
     requestAnimationFrame(frame);
@@ -835,12 +928,19 @@
     G.navMats.white.visible = nt < 0.07 || (nt > 0.18 && nt < 0.25); G.navMats.beacon.visible = (navT % 1.0) < 0.5;
     if (g.state === 'hangar') {
       if (!hDrag) hAng += dt * 0.12;
-      const s = G.AIRCRAFT[hIdx], d = Math.max(s.span, s.length) * 1.25 + 14;
+      const s = G.AIRCRAFT[hIdx], d = (Math.max(s.span, s.length) * 1.25 + 14) * hZoom;
       hcam.position.set(Math.sin(hAng) * Math.cos(hPitch) * d, s.gearH + 1 + Math.sin(hPitch) * d, Math.cos(hAng) * Math.cos(hPitch) * d);
       hcam.lookAt(0, s.gearH * 0.8, 0);
+      if (hTest >= 0 && hModel && !s.rocket) { // control-surface test: flaps, air brakes, then a full stick and rudder sweep
+        hTest += dt; const t = hTest, w = (a, b) => G.smoothstep(a, a + 1.2, t) * (1 - G.smoothstep(b, b + 1.2, t));
+        hPose.flaps = w(0.2, 9.5); hPose.brake = w(2, 4.5); hPose.pitch = Math.sin(clamp(t - 5, 0, 3) * 2.094) * (t > 5 && t < 8 ? 1 : 0); hPose.roll = Math.sin(clamp(t - 6.5, 0, 3) * 2.094) * (t > 6.5 && t < 9.5 ? 1 : 0); hPose.yaw = hPose.roll; hPose.steer = hPose.yaw;
+        hPose.rpm = w(1, 9) * 0.9; hPose.ab = w(3.5, 6.5);
+        G.poseAircraft(hModel, hPose, dt); (hModel.userData.flames || []).forEach((fl) => { fl.visible = hPose.ab > 0.03; fl.scale.set(1, 1, Math.max(0.05, hPose.ab * (0.85 + Math.random() * 0.3))); });
+        if (t > 11.5) hTest = -1;
+      }
       renderer.render(hs, hcam);
-    } else if (g.state === 'fly' || g.state === 'dead') { update(dt); renderer.render(scene, camera); }
-    else if (g.state === 'pause') renderer.render(scene, camera);
+    } else if (g.state === 'fly' || g.state === 'dead') { update(dt); renderWorld(); }
+    else if (g.state === 'pause') renderWorld();
   }
 
   // ---------- boot
@@ -848,6 +948,7 @@
     G.fx = new G.FX(scene);
     g.world = new G.World(scene);
     spawnTraffic(); spawnNaval();
+    scene.traverse((o) => { if (o.isLight) o.layers.enable(1); }); // the cockpit pass (layer 1) is lit by the same lights
     applyGfx();
     $('loading').classList.add('hidden');
     toHangar();

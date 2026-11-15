@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Air Boomber — Flight Simulator</title>
-<link rel="stylesheet" href="css/style.css?v=19">
+<link rel="stylesheet" href="css/style.css?v=20">
 </head>
 <body>
 <canvas id="gl"></canvas>
@@ -31,6 +31,18 @@
     <div id="hBars"></div>
     <h3>Loadout</h3>
     <ul id="hWeapons"></ul>
+    <div id="paintBox">
+      <h3>Paint &amp; glass</h3>
+      <label class="sand sel">Paint scheme <select id="pScheme"></select></label>
+      <div id="pCustom" class="hidden">
+        <label class="sand sel">Pattern <select id="pPat"></select></label>
+        <label class="sand sel">Colours <span class="cols"><input type="color" id="pC1" aria-label="Main colour"><input type="color" id="pC2" aria-label="Second colour"></span></label>
+      </div>
+      <label class="sand sel" id="pFinishRow">Finish <select id="pFinish"></select></label>
+      <label class="sand sel" id="pGlassRow">Canopy tint <select id="pGlass"></select></label>
+      <div class="swatches" id="pSw"></div>
+      <button id="btnTest" class="wide">Test flaps, air brakes and controls</button>
+    </div>
     <div class="price" id="hPrice"></div>
     <div class="actions">
       <button id="btnBuy" class="buy"></button>
@@ -52,7 +64,7 @@
     <button id="btnSettings" class="wide">Graphics settings</button>
     <button id="btnResetCity" class="link">Rebuild the city</button>
   </section>
-  <footer>◀ ▶ switch aircraft · drag to look around · Enter to fly</footer>
+  <footer>◀ ▶ switch aircraft · drag to look around · wheel to zoom · Enter to fly</footer>
 </div>
 
 <div id="help" class="hidden">
@@ -63,14 +75,14 @@
     <tr><td>A / D &nbsp;or&nbsp; ← / →</td><td>Roll (steer on ground)</td></tr>
     <tr><td>Q / E</td><td>Rudder</td></tr>
     <tr><td>Shift / Z</td><td>Throttle up / down (full = afterburner)</td></tr>
-    <tr><td>G · F · B</td><td>Gear · flaps · brakes / speed brake</td></tr>
+    <tr><td>G · F · B</td><td>Gear · flaps (up → half → full) · wheel brakes / air brake</td></tr>
     <tr><td>Space · X</td><td>Release bomb · switch weapon</td></tr>
     <tr><td>C</td><td>Flares</td></tr>
     <tr><td>Mouse</td><td>Look around (click to capture) · wheel zoom · right-click recentre</td></tr>
     <tr><td>V</td><td>Cockpit / external view</td></tr>
     <tr><td>N · M · P · R · H</td><td>Map range (6 / 12 / 30 / 60 km) · mute · pause · restart · this help</td></tr>
   </table>
-  <p>Take-off: flaps down, full throttle, pull back gently at rotation speed, then gear up (G) and flaps up (F).</p>
+  <p>Take-off: flaps down, full throttle, pull back gently at rotation speed, then gear up (G) and flaps up (F). Landing: slow below the gear and flap limits, gear down, flaps full, hold B after touchdown.</p>
 </div>
 
 <div id="pause" class="overlay hidden"><div class="box"><h2>Paused</h2><button id="btnResume" class="primary">Resume</button><button id="btnSettings2">Graphics settings</button><button id="btnHangar">Return to hangar</button></div></div>
@@ -94,15 +106,15 @@
   <button id="btnSettingsClose">Close</button>
 </div></div>
 
-<script src="lib/three.min.js?v=19"></script>
-<script src="js/data.js?v=19"></script>
-<script src="js/physics.js?v=19"></script>
-<script src="js/models.js?v=19"></script>
-<script src="js/world.js?v=19"></script>
-<script src="js/city.js?v=19"></script>
-<script src="js/effects.js?v=19"></script>
-<script src="js/audio.js?v=19"></script>
-<script src="js/hud.js?v=19"></script>
-<script src="js/game.js?v=19"></script>
+<script src="lib/three.min.js?v=20"></script>
+<script src="js/data.js?v=20"></script>
+<script src="js/physics.js?v=20"></script>
+<script src="js/models.js?v=20"></script>
+<script src="js/world.js?v=20"></script>
+<script src="js/city.js?v=20"></script>
+<script src="js/effects.js?v=20"></script>
+<script src="js/audio.js?v=20"></script>
+<script src="js/hud.js?v=20"></script>
+<script src="js/game.js?v=20"></script>
 </body>
 </html>

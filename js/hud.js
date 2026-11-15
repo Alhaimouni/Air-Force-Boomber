@@ -108,8 +108,32 @@
     if (f.ab > 0.05) { x.fillStyle = AMBER; x.fillRect(bx + 2, by + 2, 10, 106 * 0.1 * f.ab); x.fillStyle = GREEN; }
     let ly = by + 6; const line = (t, c) => { x.fillStyle = c || GREEN; x.fillText(t, bx + 26, ly); ly += 19; };
     line('THR ' + thr + '%' + (f.ab > 0.5 ? '  AB' : ''), f.ab > 0.5 ? AMBER : GREEN);
-    line('GEAR ' + (f.gear > 0.95 ? 'DOWN' : f.gear < 0.05 ? 'UP' : '····') + '   FLAPS ' + (f.flapsTarget ? 'DN' : 'UP'), f.gear > 0.05 && f.ias * G.KTS > 300 ? AMBER : GREEN);
-    line(f.brake ? (f.onGround ? 'WHEEL BRAKE' : 'SPEED BRAKE') : ' ', AMBER);
+    if (!spec.rocket) { // systems: gear lights, flap position, speed brake / wheel brakes
+      const sx = bx, sy = by - 66, st = G.smoothstep, blinkS = (performance.now() % 400) < 240;
+      x.font = '12px Consolas, monospace'; x.lineWidth = 1.4;
+      x.fillStyle = GREEN; x.fillText('GEAR', sx, sy + 14);
+      [[sx + 76, sy + 2, -0.06], [sx + 62, sy + 20, 0.05], [sx + 90, sy + 20, 0]].forEach((q) => {
+        const dn = st(0.14 + q[2], 0.9 + q[2], f.gear), locked = f.gear >= 0.999, up = f.gear <= 0.001;
+        x.strokeStyle = up ? 'rgba(109,255,143,0.45)' : locked ? GREEN : AMBER; x.strokeRect(q[0] - 6, q[1] - 6, 12, 12);
+        if (locked) { x.fillStyle = GREEN; x.fillRect(q[0] - 4, q[1] - 4, 8, 8); }
+        else if (!up) { x.fillStyle = f.gearOver && blinkS ? RED : AMBER; x.fillRect(q[0] - 4, q[1] - 4 + 8 * (1 - dn), 8, 8 * dn); }
+      });
+      x.fillStyle = f.gearOver ? RED : f.gear >= 0.999 ? GREEN : f.gear <= 0.001 ? GREEN : AMBER;
+      x.fillText(f.gear >= 0.999 ? 'DOWN' : f.gear <= 0.001 ? 'UP' : (f.gearTarget ? 'EXTEND' : 'RETRACT'), sx, sy + 28);
+      // flap gauge: track with three detents and a moving pointer
+      const fx0 = sx + 122, fy0 = sy - 2, fh = 32, fc = f.flapOver ? RED : Math.abs(f.flaps - f.flapsTarget) > 1e-4 ? AMBER : GREEN;
+      x.strokeStyle = GREEN; x.beginPath(); x.moveTo(fx0, fy0); x.lineTo(fx0, fy0 + fh); [0, 0.5, 1].forEach((d) => { x.moveTo(fx0, fy0 + d * fh); x.lineTo(fx0 + (d === f.flapsTarget ? 9 : 5), fy0 + d * fh); }); x.stroke();
+      x.fillStyle = fc; x.beginPath(); x.moveTo(fx0 - 2, fy0 + f.flaps * fh); x.lineTo(fx0 - 10, fy0 + f.flaps * fh - 5); x.lineTo(fx0 - 10, fy0 + f.flaps * fh + 5); x.closePath(); x.fill();
+      x.fillText('FLAP', fx0 + 14, fy0 + 6); x.fillText(f.flaps < 0.02 ? 'UP' : Math.round(f.flaps * (spec.maxG > 5 ? 25 : 40)) + '°' + (f.flapsTarget >= 1 ? ' FULL' : f.flapsTarget > 0 ? ' T/O' : ''), fx0 + 14, fy0 + 22);
+      // brake bar: speed brake in the air, wheel brakes with disc temperature on the ground
+      const hotC = f.brakeTemp > 520 ? RED : f.brakeTemp > 320 ? AMBER : GREEN;
+      x.strokeStyle = GREEN; x.strokeRect(sx, sy + 40, 60, 9);
+      x.fillStyle = f.onGround ? hotC : AMBER; x.fillRect(sx + 1.5, sy + 41.5, 57 * f.brake, 6);
+      x.fillStyle = f.brake > 0.05 ? (f.onGround ? hotC : AMBER) : GREEN;
+      x.fillText(f.onGround ? 'WHL BRK ' + (f.brakeTemp > 60 ? Math.round(f.brakeTemp / 10) * 10 + '°C' : '') : 'SPD BRK' + (f.brake > 0.05 ? ' ' + Math.round(f.brake * 100) + '%' : ''), sx + 68, sy + 45);
+      if (!f.onGround && f.brakeTemp > 120) { x.fillStyle = hotC; x.fillText('BRK ' + Math.round(f.brakeTemp / 10) * 10 + '°C', sx + 150, sy + 45); }
+      x.font = '14px Consolas, monospace'; x.lineWidth = 1.6; x.strokeStyle = GREEN;
+    }
     const w = g.currentWeapon();
     line(w ? w.def.short + '  × ' + w.count : (spec.rocket ? 'G ' + f.nz.toFixed(1) + '  LOCAL g ' + f.gLocal.toFixed(1) : spec.civil ? 'CIVIL — NO WEAPONS' : 'NO WEAPONS'), w && w.count === 0 ? RED : GREEN);
     if (spec.flares) line('FLARES ' + g.flares);
@@ -125,6 +149,14 @@
     else if (g.locked && !g.missiles.length) { x.font = 'bold 15px Consolas, monospace'; warnTxt('RADAR LOCK', AMBER); x.font = 'bold 22px Consolas, monospace'; }
     if (f.stalled && blink) warnTxt('STALL', RED);
     if (g.pullUp && blink) warnTxt('PULL UP', RED);
+    else if (g.gearWarn && blink) warnTxt('LANDING GEAR  [G]', RED);
+    if (!spec.rocket) {
+      x.font = 'bold 15px Consolas, monospace';
+      if (f.gearOver) warnTxt('GEAR OVERSPEED — LIMIT ' + f.vle + ' KT', AMBER);
+      if (f.flapOver) warnTxt('FLAP OVERSPEED — LIMIT ' + f.vfe + ' KT', AMBER);
+      if (f.onGround && f.brakeTemp > 520) warnTxt('HOT BRAKES', AMBER);
+      x.font = 'bold 22px Consolas, monospace';
+    }
     if (g.audioTransonic > 0.25) { x.font = 'bold 15px Consolas, monospace'; warnTxt('TRANSONIC BUFFET', AMBER); }
     if (f.onGround && f.V < 3 && f.throttle < 0.05 && g.time < 12 && g.spec.rocket) { x.font = '15px Consolas, monospace'; warnTxt('Hold SHIFT to ignite · W/S pitch · A/D yaw · Q/E roll · Z cuts the engines', GREEN); }
     else if (f.onGround && f.V < 3 && f.throttle < 0.05 && g.time < 12) { x.font = '15px Consolas, monospace'; warnTxt('Hold SHIFT for throttle · pull back [S / ↓] at rotation speed · H = help', GREEN); }
@@ -224,14 +256,25 @@
     // right display: flight and engine data
     x.textAlign = 'left'; x.font = 'bold 17px monospace';
     const row = (k, v, y, col) => { x.fillStyle = '#5f8fa8'; x.fillText(k, 284, y); x.fillStyle = col || '#7dffa0'; x.fillText(v, 364, y); };
-    row('HDG', String(Math.round(((-e.y * 57.3) % 360 + 360) % 360)).padStart(3, '0') + '°', 44);
-    row('MACH', f.mach.toFixed(2), 68);
-    row('G', f.nz.toFixed(1), 92, f.nz > 7 ? '#ffb13a' : '#7dffa0');
-    row('AOA', (f.alpha * 57.3).toFixed(0) + '°', 116, f.stalled ? '#ff5040' : '#7dffa0');
-    row('VS', String(Math.round(f.vel.y * 196.85 / 10) * 10), 140);
+    row('HDG', String(Math.round(((-e.y * 57.3) % 360 + 360) % 360)).padStart(3, '0') + '°', 40);
+    row('MACH', f.mach.toFixed(2), 61);
+    row('G', f.nz.toFixed(1), 82, f.nz > 7 ? '#ffb13a' : '#7dffa0');
+    row('AOA', (f.alpha * 57.3).toFixed(0) + '°', 103, f.stalled ? '#ff5040' : '#7dffa0');
+    row('VS', String(Math.round(f.vel.y * 196.85 / 10) * 10), 124);
     const bar = (k, v, y, col) => { x.fillStyle = '#5f8fa8'; x.fillText(k, 284, y); x.strokeStyle = '#3f6070'; x.lineWidth = 1; x.strokeRect(344, y - 13, 140, 14); x.fillStyle = col; x.fillRect(346, y - 11, 136 * G.clamp(v, 0, 1), 10); };
-    bar('RPM', f.rpm, 172, '#7dffa0'); bar('THR', f.throttle, 196, f.ab > 0.3 ? '#ffb13a' : '#7dffa0');
-    const w = g.currentWeapon(); x.fillStyle = '#ffd23a'; x.fillText(w ? w.def.short + ' x' + w.count : 'NO STORES', 284, 228);
+    bar('RPM', f.rpm, 147, '#7dffa0'); bar('THR', f.throttle, 168, f.ab > 0.3 ? '#ffb13a' : '#7dffa0');
+    // systems: gear lights, flaps, brakes
+    x.fillStyle = '#5f8fa8'; x.fillText('GEAR', 284, 191);
+    [[352, -0.06], [376, 0.05], [400, 0]].forEach((q) => {
+      const locked = f.gear >= 0.999, up = f.gear <= 0.001;
+      x.strokeStyle = '#3f6070'; x.strokeRect(q[0] - 8, 177, 16, 16);
+      if (!up) { x.fillStyle = locked ? '#7dffa0' : f.gearOver ? '#ff5040' : '#ffb13a'; x.fillRect(q[0] - 6, 179, 12, 12 * G.smoothstep(0.14 + q[1], 0.9 + q[1], f.gear)); }
+    });
+    x.fillStyle = f.gear >= 0.999 ? '#7dffa0' : f.gear <= 0.001 ? '#5f8fa8' : '#ffb13a'; x.fillText(f.gear >= 0.999 ? 'DN' : f.gear <= 0.001 ? 'UP' : '···', 422, 191);
+    bar('FLAP', f.flaps, 212, f.flapOver ? '#ff5040' : '#7dffa0');
+    const w = g.currentWeapon(), hot = f.brakeTemp > 520;
+    x.fillStyle = f.brake > 0.05 || hot ? (hot ? '#ff5040' : '#ffb13a') : '#ffd23a';
+    x.fillText(f.brake > 0.05 || hot ? (f.onGround ? 'WHL BRK ' + Math.round(f.brakeTemp / 10) * 10 + '°C' : 'SPEED BRAKE ' + Math.round(f.brake * 100) + '%') : (w ? w.def.short + ' x' + w.count : 'NO STORES'), 284, 234);
     G.panelTexture().needsUpdate = true;
   };
 })();

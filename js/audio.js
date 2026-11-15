@@ -41,10 +41,14 @@
       this.buffet = chain(src(this.brown), 'lowpass', 90, 1, this.master);
       const bl = c.createOscillator(); bl.frequency.value = 11; const bg = c.createGain(); bg.gain.value = 0; bl.connect(bg); bg.connect(this.buffet.g.gain); bl.start(); this.buffetLfo = bg;
       this.hiss = chain(src(this.white), 'highpass', 2500, 0.5, this.master);
+      // hydraulic servo whine (gear, flaps) and the low rumble of gear / speed brakes in the airflow
+      this.oscS = c.createOscillator(); this.oscS.type = 'sawtooth'; this.oscS.frequency.value = 210; this.oscS.start();
+      this.servo = chain(this.oscS, 'bandpass', 900, 3, this.master);
+      this.dragN = chain(src(this.brown), 'lowpass', 260, 0.8, this.master);
     }
     setAircraft(spec) { this.snd = spec.sound; if (this.ctx) { this.osc1.type = this.osc2.type = spec.sound.whine[3]; } this.boomArmed = true; }
     toggleMute() { this.muted = !this.muted; if (this.ctx) this.master.gain.setTargetAtTime(this.muted ? 0 : 0.8, this.ctx.currentTime, 0.05); return this.muted; }
-    silence() { if (!this.ctx) return; const t = this.ctx.currentTime; [this.engBus, this.wind.g, this.buffet.g, this.hiss.g].forEach((g) => g.gain.setTargetAtTime(0, t, 0.15)); this.buffetLfo.gain.setTargetAtTime(0, t, 0.1); }
+    silence() { if (!this.ctx) return; const t = this.ctx.currentTime; [this.engBus, this.wind.g, this.buffet.g, this.hiss.g, this.servo.g, this.dragN.g].forEach((g) => g.gain.setTargetAtTime(0, t, 0.15)); this.buffetLfo.gain.setTargetAtTime(0, t, 0.1); }
 
     // st: {rpm, ab, V, mach, cockpit, rear (-1..1 camera behind aircraft), active}
     update(st, dt) {
@@ -69,6 +73,9 @@
       const tr = st.active ? Math.exp(-Math.pow((st.mach - 1.0) / 0.055, 2)) : 0;
       set(this.buffet.g.gain, tr * 0.9); set(this.buffetLfo.gain, tr * 0.5); set(this.hiss.g.gain, tr * 0.12);
       this.transonic = tr;
+      set(this.oscS.frequency, st.gearMove ? 210 : 330, 0.03);
+      set(this.servo.g.gain, st.active ? (st.gearMove ? 0.04 : st.flapMove ? 0.02 : 0) * (st.cockpit ? 1 : 0.5) : 0, 0.05);
+      set(this.dragN.g.gain, st.active ? Math.min(0.7, (st.buffet || 0) * 1.1) : 0, 0.15);
       if (st.mach > 1.0 && this.boomArmed && st.active) { this.boomArmed = false; this.sonicBoom(); this.boomed = true; }
       if (st.mach < 0.94) this.boomArmed = true;
     }
@@ -108,6 +115,8 @@
     release() { if (this.ctx) { const t = this.ctx.currentTime; this._burst(t, 0.12, 500, 0.5); this._tone(t, 0.1, 140, 60, 0.4); } }
     touchdown(sink) { if (this.ctx) { const t = this.ctx.currentTime; this._burst(t, 0.35, 3500, 0.35, this.white, 3); this._burst(t, 0.4, 200, 0.5 + sink * 0.15); } }
     clunk() { if (this.ctx) { const t = this.ctx.currentTime; this._burst(t, 0.2, 300, 0.5); } }
+    lock() { if (this.ctx) { const t = this.ctx.currentTime; this._burst(t, 0.16, 420, 0.6); this._burst(t + 0.07, 0.12, 900, 0.3, this.white, 2); this._tone(t, 0.12, 110, 55, 0.35); } }
+    squeal() { if (this.ctx) { const t = this.ctx.currentTime; this._tone(t, 0.5, 2300, 1500, 0.05, 'sawtooth'); this._burst(t, 0.5, 3000, 0.12, this.white, 4); } }
     pop() { if (this.ctx) this._burst(this.ctx.currentTime, 0.15, 2500, 0.3, this.white); }
     whoosh() { if (this.ctx) this._burst(this.ctx.currentTime, 1.4, 1800, 0.6, this.white); }
     // periodic warnings: kind 'missile' | 'stall' | 'lock'
@@ -117,6 +126,7 @@
       else if (kind === 'stall') { this.beep(420, 0.16, 0.14, 'sawtooth'); this.beepT = 0.26; }
       else if (kind === 'lock') { this.beep(700, 0.05, 0.07); this.beepT = 1.1; }
       else if (kind === 'pullup') { this.beep(980, 0.14, 0.2); this.beepT = 0.3; }
+      else if (kind === 'gear') { this.beep(520, 0.22, 0.13, 'square'); this.beepT = 0.42; }
     }
   }
   G.audio = new Audio();
