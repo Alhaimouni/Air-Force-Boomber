@@ -26,7 +26,7 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 #hangar footer { position: absolute; bottom: 16px; left: 32px; color: #7f8e9c; font-size: 13px; pointer-events: none; }
 .nav { position: absolute; top: 50%; width: 56px; height: 76px; margin-top: -38px; font-size: 26px; background: rgba(14, 18, 23, 0.6); color: #e8edf2; border: 1px solid #39424c; cursor: pointer; }
 .nav:hover { background: rgba(40, 52, 64, 0.8); }
-#btnPrev { left: 24px; } #btnNext { right: 400px; }
+#btnPrev { left: 372px; } #btnNext { right: 400px; }
 .card { position: absolute; right: 24px; top: 70px; bottom: 24px; width: 350px; padding: 20px 22px; overflow-y: auto; background: rgba(12, 16, 20, 0.82); border: 1px solid #2c343d; backdrop-filter: blur(6px); }
 .card .count { color: #7f8e9c; font-size: 12px; font-family: Consolas, monospace; }
 .card h2 { margin: 2px 0 2px; font-size: 25px; font-weight: 600; }
@@ -58,7 +58,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .overlay { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: rgba(5, 7, 9, 0.55); }
 .box { width: 380px; padding: 26px; background: rgba(12, 16, 20, 0.94); border: 1px solid #2c343d; display: flex; flex-direction: column; gap: 10px; }
 .box h2 { margin: 0; font-weight: 600; } .box p { margin: 0 0 8px; color: #b9c6d2; line-height: 1.5; }
-@media (max-width: 900px) { .card { width: 300px; } #btnNext { right: 340px; } #help { width: 320px; } }
+
 
 .sand.sel { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .sand select { font: inherit; background: #1b222a; color: #e8edf2; border: 1px solid #3a4550; padding: 5px 8px; }
@@ -77,7 +77,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 button.wide { margin-top: 12px; width: 100%; padding: 9px 12px; font-size: 14px; background: #1b222a; color: #e8edf2; border: 1px solid #3a4550; cursor: pointer; }
 button.wide:hover { background: #28323d; }
 
-#objective { position: fixed; top: 44px; left: 16px; z-index: 6; padding: 8px 12px; background: rgba(8, 12, 16, 0.6); border-left: 3px solid #ffc341; font: 13px Consolas, monospace; color: #dfe7ee; pointer-events: none; line-height: 1.55; max-width: 380px; }
+#objective { position: fixed; top: 44px; left: 16px; z-index: 6; padding: 8px 12px; background: rgba(8, 12, 16, 0.6); border-left: 3px solid #ffc341; font: 13px Consolas, monospace; color: #dfe7ee; pointer-events: none; line-height: 1.55; max-width: 268px; }
 #objective .ttl { color: #ffc341; font-weight: 700; letter-spacing: 0.04em; }
 .brief { margin: 10px 0 4px; font-size: 13px; line-height: 1.5; color: #c4cfd9; }
 button.wide.go { margin-top: 6px; background: #8a3a12; border-color: #c9601f; font-weight: 600; font-size: 15px; }
@@ -88,3 +88,38 @@ button.wide.go:hover { background: #a3481a; }
 .cols { display: flex; gap: 6px; }
 .cols input { width: 46px; height: 28px; padding: 0; border: 1px solid #3a4550; background: #1b222a; cursor: pointer; }
 #paintBox .wide { margin-top: 8px; }
+
+/* hangar menu: mode panel on the left, aircraft card on the right */
+.panel { position: absolute; left: 24px; top: 86px; bottom: 44px; width: 326px; padding: 16px 18px; overflow-y: auto; background: rgba(12, 16, 20, 0.84); border: 1px solid #2c343d; backdrop-filter: blur(6px); display: flex; flex-direction: column; }
+.card { top: 86px; bottom: 44px; }
+.step { font-size: 12px; letter-spacing: 0.15em; text-transform: uppercase; color: #9fb0c0; font-weight: 600; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+.step b { width: 22px; height: 22px; border-radius: 50%; background: #1f6fd0; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; letter-spacing: 0; }
+.step.sub { margin: 14px 0 0; color: #7f8e9c; }
+.step .count { margin-left: auto; letter-spacing: 0; }
+.modes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.mode { display: flex; align-items: center; gap: 8px; text-align: left; padding: 9px 8px; background: #161c23; color: #e8edf2; border: 1px solid #2f3944; border-left: 3px solid transparent; cursor: pointer; }
+.mode i { flex: none; font-style: normal; font: 12px Consolas, monospace; color: #7f8e9c; border: 1px solid #3a4550; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; }
+.mode b { font-size: 13.5px; font-weight: 600; line-height: 1.2; } .mode span { font-size: 12px; color: #9aa8b5; line-height: 1.35; }
+.mode:hover { background: #1f2831; }
+.mode.on { background: #1b3352; border-color: #3b8cf0; border-left-color: #6dff8f; }
+.mode.on i { color: #6dff8f; border-color: #6dff8f; }
+.mode:disabled { opacity: 0.4; cursor: not-allowed; }
+.mode:focus-visible, .start:focus-visible, .nav:focus-visible { outline: 2px solid #6dff8f; outline-offset: 1px; }
+.opts { display: none; } .opts.on { display: block; }
+.opts .sand { margin-top: 10px; }
+.sand select { max-width: 185px; }
+.best { font: 12px Consolas, monospace; color: #ffd75a; min-height: 16px; margin: 2px 0 8px; }
+.go { margin-top: auto; position: sticky; bottom: -16px; margin-left: -18px; margin-right: -18px; padding: 8px 18px 16px; background: linear-gradient(rgba(12,16,20,0), #0c1014 22%); }
+.start { width: 100%; padding: 14px; font-size: 18px; font-weight: 700; letter-spacing: 0.04em; background: #1f8a3d; color: #fff; border: 1px solid #36c463; cursor: pointer; }
+.start:hover:not(:disabled) { background: #26a34a; }
+.startNote { min-height: 0; margin-bottom: 6px; font-size: 12px; color: #ffb3aa; text-align: center; }
+.extras { margin-top: 14px; padding-top: 8px; border-top: 1px solid #2c343d; display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; }
+.extras .sand { margin-top: 0; width: 100%; } .extras .link { margin-top: 4px; }
+.card .price { margin: 8px 0 8px; }
+button.wideBuy { width: 100%; padding: 10px; margin-bottom: 8px; font-size: 15px; color: #fff; cursor: pointer; }
+details#paintBox { margin-top: 14px; border-top: 1px solid #2c343d; padding-top: 10px; }
+details#paintBox summary { cursor: pointer; font-size: 12px; letter-spacing: 0.15em; text-transform: uppercase; color: #9fd0ff; font-weight: 600; }
+#hangar header { top: 18px; }
+@media (max-width: 1100px) { .panel { width: 280px; left: 12px; } .card { width: 290px; right: 12px; } #btnPrev { left: 304px; } #btnNext { right: 314px; } #help { width: 320px; } }
+@media (max-height: 700px) { .mode { padding: 6px 8px; } .opts .sand { margin-top: 7px; } }
+#objective .tm { color: #6dff8f; font-weight: 700; }

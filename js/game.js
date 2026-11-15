@@ -6,10 +6,11 @@
 
   // ---------- save
   const SAVE_KEY = 'airboomber.v1';
-  let save = { money: 0, owned: ['f16', 'a320'], sandbox: false, last: 0, defence: true, startAp: 0, startCity: 0, mLevel: 1, mLevelSel: 0, mTarget: -1, assist: 2, flareRefill: true, paint: {} };
+  let save = { money: 0, owned: ['f16', 'a320'], sandbox: false, last: 0, defence: true, startAp: 0, startCity: 0, mLevel: 1, mLevelSel: 0, mTarget: -1, assist: 2, flareRefill: true, paint: {}, mode: 'free', freeStart: 'rw', mCities: 1, rTime: 180, rCity: 0, rDef: false, lWhere: 0, lDist: 9000, best: {} };
   try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && s.owned) save = Object.assign(save, s); } catch (e) { /* no save */ }
   const persist = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) { /* ignore */ } };
   if (!save.paint || typeof save.paint !== 'object') save.paint = {};
+  if (!save.best || typeof save.best !== 'object') save.best = {};
   const paintOf = (id) => save.paint[id] || {};
   const owns = (id) => save.sandbox || save.owned.indexOf(id) >= 0 || G.aircraftById(id).price === 0;
 
@@ -174,9 +175,8 @@
     $('hPrice').textContent = own ? 'In your hangar' : 'Price ' + G.money(s.price);
     $('btnBuy').style.display = own ? 'none' : ''; $('btnBuy').disabled = save.money < s.price;
     $('btnBuy').textContent = save.money < s.price ? 'Need ' + G.money(s.price - save.money) + ' more' : 'Buy for ' + G.money(s.price);
-    $('btnFly').disabled = $('btnAir').disabled = !own;
     $('hCount').textContent = (hIdx + 1) + ' / ' + G.AIRCRAFT.length;
-    save.last = hIdx; persist(); refreshMoney();
+    save.last = hIdx; persist(); refreshMoney(); modeUI();
   }
   function buildHangarModel() {
     const s = G.AIRCRAFT[hIdx];
@@ -207,18 +207,19 @@
     g.state = 'hangar'; if (document.pointerLockElement) document.exitPointerLock();
     ['pause', 'summary', 'help'].forEach((id) => $(id).classList.add('hidden'));
     $('hangar').classList.remove('hidden'); $('flightUI').classList.add('hidden'); g.hctx.clearRect(0, 0, g.W, g.H);
-    G.audio.silence(); $('sandbox').checked = save.sandbox; $('defence').checked = save.defence; $('startAp').value = String(save.startAp); $('startCity').value = String(save.startCity); missionUI(); showHangarAircraft();
+    G.audio.silence(); $('objective').classList.add('hidden'); showHangarAircraft();
   }
 
   // ---------- flight setup
-  function startFlight(air) {
+  function startFlight(air, quiet) {
     const s = g.spec = G.AIRCRAFT[hIdx];
     G.audio.init(); G.audio.setAircraft(s);
     if (g.model) scene.remove(g.model);
     g.model = G.buildAircraft(s, { paint: paintOf(s.id) }); scene.add(g.model);
     g.flight = s.rocket ? new G.RocketFlight(s) : new G.Flight(s);
     if (s.rocket) air = false;
-    const ct = g.targetCity = G.CITIES[save.startCity] || G.CITIES[0];
+    const ct = g.targetCity = g.forceCity || G.CITIES[save.startCity] || G.CITIES[0]; g.forceCity = null;
+    g.defence = g.mode === 'free' ? save.defence : g.mode === 'rush' ? save.rDef : false;
     if (air) g.flight.reset(new V3(ct.x, 1800, ct.z + (ct.rz || ct.r) + 7000), 0, Math.min(230, s.machLimit * 300));
     const apIdx = g.forceAp != null ? g.forceAp : save.startAp; g.forceAp = null;
     let ap = g.homeAp = G.AIRPORTS[apIdx] || G.AIRPORTS[0];
@@ -232,14 +233,14 @@
     g.ammo = s.weapons.map((w) => ({ def: G.WEAPONS[w.type], count: w.count, max: w.count })); g.weaponIdx = 0; g.flares = s.flares;
     g.state = 'fly'; g.time = 0; g.sortie = 0; g.hasFlown = !!air; g.view = 0; g.camYaw = 0; g.camPitch = 0; g.zoom = 1; g.dropT = 0; g.flareT = 0; g.passT = 0; g.deadT = 0;
     g.gearPrev = g.flight.gear; g.flapPrev = g.flight.flaps; g.flapSet = g.flight.flapsTarget; g.hotBrakes = false; g.flapOverMsg = false; g.gearMove = g.flapMove = false; g.bump = 0; g.buffet = 0; g.headY = 0; g.gearWarn = false; g.squealT = 0;
-    g.hasFlownMission = false; g.lastWasMission = false; $('btnAgain').textContent = 'Fly again'; g.helpHidden = false; g.camFwd = new V3(0, 0, -1); g.model.visible = true; g.shock = null; g.samGrace = 25;
+    g.hasFlownMission = false; $('btnAgain').textContent = 'Fly again'; g.helpHidden = false; g.camFwd = new V3(0, 0, -1); g.model.visible = true; g.shock = null; g.samGrace = 25;
     g.missiles.forEach((m) => scene.remove(m.mesh)); g.missiles.length = 0;
     clearMission(); g.diff = diffFor(curLevel()); g.flakT = 3; g.flakBursts = [];
     $('hangar').classList.add('hidden'); $('summary').classList.add('hidden'); $('pause').classList.add('hidden'); $('flightUI').classList.remove('hidden');
     refreshMoney();
-    msg(s.name + (air ? ' — air start, ' + ct.name + ' is 7 km ahead' : (s.rocket ? ' — on the pad at the Space Center. Hold Shift to ignite; the Moon is high to the north-east' : fromCarrier ? ' — on the catapult. Full throttle to launch' : ' — cleared for take-off, ' + ap.name + ' runway 36')), '');
+    if (!quiet) msg(s.name + (air ? ' — air start, ' + ct.name + ' is 7 km ahead' : (s.rocket ? ' — on the pad at the Space Center. Hold Shift to ignite; the Moon is high to the north-east' : fromCarrier ? ' — on the catapult. Full throttle to launch' : ' — cleared for take-off, ' + ap.name + ' runway 36')), '');
     if (g.tooBig) msg(s.name + ' is too large for the carrier — starting at ' + ap.name, 'bad');
-    if (!save.defence && !s.civil) msg('City air defence is switched off', '');
+    if (g.mode === 'free' && !g.defence && !s.civil) msg('City air defence is switched off', '');
     if (!air) $('help').classList.remove('hidden');
   }
   g.assistLevel = () => save.assist;
@@ -252,7 +253,8 @@
     if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'PageUp', 'PageDown'].indexOf(e.code) >= 0) e.preventDefault();
     if (e.repeat) return; keys[e.code] = true;
     if (g.state === 'hangar') {
-      if (e.code === 'ArrowLeft') $('btnPrev').click(); if (e.code === 'ArrowRight') $('btnNext').click(); if (e.code === 'Enter' && !$('btnFly').disabled) $('btnFly').click();
+      if (e.code === 'ArrowLeft') $('btnPrev').click(); if (e.code === 'ArrowRight') $('btnNext').click(); if (e.code === 'Enter' && !$('btnStart').disabled && !(e.target && /^(SELECT|BUTTON|INPUT|SUMMARY)$/.test(e.target.tagName))) $('btnStart').click();
+      const mi = ['Digit1', 'Digit2', 'Digit3', 'Digit4'].indexOf(e.code); if (mi >= 0) setMode(MODES[mi]);
       return;
     }
     if (e.code === 'KeyP' || e.code === 'Escape') { if (g.state === 'fly') { g.state = 'pause'; $('pause').classList.remove('hidden'); G.audio.silence(); if (document.pointerLockElement) document.exitPointerLock(); } else if (g.state === 'pause') resume(); return; }
@@ -268,7 +270,7 @@
     }
     if (e.code === 'KeyV') { g.view = 1 - g.view; g.camYaw = 0; g.camPitch = 0; }
     if (e.code === 'KeyX' && g.ammo.length) { g.weaponIdx = (g.weaponIdx + 1) % g.ammo.length; msg('Selected ' + g.currentWeapon().def.name); G.audio.beep(900, 0.05, 0.1); }
-    if (e.code === 'KeyR') { startFlight(false); }
+    if (e.code === 'KeyR') restart();
     if (e.code === 'KeyN') g.mapRange = g.mapRange === 6000 ? 12000 : g.mapRange === 12000 ? 30000 : g.mapRange === 30000 ? 60000 : 6000;
     if (e.code === 'Home') { g.camYaw = 0; g.camPitch = 0; }
   });
@@ -301,30 +303,75 @@
   $('pC1').onchange = (e) => setPaint('c1', e.target.value); $('pC2').onchange = (e) => setPaint('c2', e.target.value);
   $('pFinish').onchange = (e) => setPaint('finish', e.target.value); $('pGlass').onchange = (e) => setPaint('glass', e.target.value);
   $('btnTest').onclick = () => { hTest = 0; };
-  $('btnFly').onclick = () => startFlight(false);
-  $('btnAir').onclick = () => startFlight(true);
   $('sandbox').onchange = (e) => { save.sandbox = e.target.checked; persist(); showHangarAircraft(); };
-  $('defence').onchange = (e) => { save.defence = e.target.checked; persist(); };
+  $('defence').onchange = (e) => { save.defence = e.target.checked; persist(); modeUI(); };
   $('startAp').innerHTML = G.AIRPORTS.map((a, i) => `<option value="${i}">${a.name}</option>`).join('') + `<option value="${G.AIRPORTS.length}">${G.CARRIER.name} (at sea)</option>`;
-  $('startAp').onchange = (e) => { save.startAp = +e.target.value; persist(); };
+  $('startAp').onchange = (e) => { save.startAp = +e.target.value; persist(); modeUI(); };
   $('startCity').innerHTML = G.CITIES.map((c, i) => `<option value="${i}">${c.name}</option>`).join('');
-  $('startCity').onchange = (e) => { save.startCity = +e.target.value; persist(); };
+  $('startCity').onchange = (e) => { save.startCity = +e.target.value; persist(); modeUI(); };
   G.onCrush = (res) => earn(Math.round(res.money / 100) * 100, (res.destroyed ? res.destroyed + ' crushed' : 'damage') + ' by a falling tower');
-  $('btnResume').onclick = resume; $('btnHangar').onclick = toHangar; $('btnSumHangar').onclick = toHangar; $('btnAgain').onclick = () => (g.lastWasMission ? startMission() : startFlight(false));
+  $('btnResume').onclick = resume; $('btnHangar').onclick = toHangar; $('btnSumHangar').onclick = toHangar; $('btnAgain').onclick = () => restart(); $('btnRestart').onclick = () => restart();
   $('btnResetCity').onclick = () => location.reload();
-  function missionUI() {
+  // ---------- game modes and the hangar menu
+  const MODES = ['free', 'mission', 'rush', 'landing'], MODE_NAMES = { free: 'Free flight', mission: 'Strike mission', rush: 'Demolition rush', landing: 'Landing challenge' };
+  const fmtT = (t) => { t = Math.max(0, Math.floor(t)); return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); };
+  const missionCities = (L, n) => { const e = enemyCities(), i0 = save.mTarget >= 0 && e[save.mTarget] ? save.mTarget : (L + 2) % e.length, out = []; for (let i = 0; i < clamp(n, 1, e.length); i++) out.push(e[(i0 + i) % e.length]); return out; };
+  const landSites = () => G.AIRPORTS.map((a) => a.name).concat([G.CARRIER.name + ' (at sea)']);
+  function setMode(md) { if (MODES.indexOf(md) < 0) return; save.mode = md; persist(); modeUI(); }
+  function modeUI() {
+    const s = G.AIRCRAFT[hIdx], own = owns(s.id), md = MODES.indexOf(save.mode) >= 0 ? save.mode : 'free', e = enemyCities();
+    document.querySelectorAll('.mode').forEach((b) => { const on = b.dataset.mode === md; b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); });
+    document.querySelectorAll('.opts').forEach((o) => o.classList.toggle('on', o.dataset.for === md));
+    $('sandbox').checked = save.sandbox;
+    $('freeStart').value = save.freeStart; $('rowAp').classList.toggle('hidden', save.freeStart === 'air'); $('rowCity').classList.toggle('hidden', save.freeStart !== 'air');
+    $('defence').checked = save.defence; $('startAp').value = String(save.startAp); $('startCity').value = String(save.startCity);
+    $('mCities').innerHTML = e.map((c, i) => `<option value="${i + 1}">${i + 1} ${i ? 'cities' : 'city'}</option>`).join(''); $('mCities').value = String(clamp(save.mCities, 1, e.length));
     $('mLevel').innerHTML = `<option value="0">Auto — next is level ${clamp(save.mLevel, 1, 10)}</option>` + [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((l) => `<option value="${l}">Level ${l} — ${LEVEL_NAMES[l]}</option>`).join('');
     $('mLevel').value = String(save.mLevelSel);
-    $('mTarget').innerHTML = '<option value="-1">Auto</option>' + enemyCities().map((c, i) => `<option value="${i}">${c.name}</option>`).join(''); $('mTarget').value = String(save.mTarget);
+    $('mTarget').innerHTML = '<option value="-1">Auto</option>' + e.map((c, i) => `<option value="${i}">${c.name}</option>`).join(''); $('mTarget').value = String(save.mTarget);
     $('mAssist').value = String(save.assist); $('mFlares').checked = save.flareRefill;
-    const L = curLevel(), d = diffFor(L), c = missionTarget(L);
-    $('mBrief').textContent = `Level ${L} (${LEVEL_NAMES[L]}): destroy ${d.sites} defence sites around ${c.name}, then land at a friendly airfield. Up to ${d.maxMsl} missile${d.maxMsl > 1 ? 's' : ''} in the air${d.flak ? ', plus anti-aircraft guns' : ''}. Reward ${G.money(d.reward)}.`;
+    $('rTime').value = String(save.rTime); $('rCity').innerHTML = e.map((c, i) => `<option value="${i}">${c.name}</option>`).join(''); $('rCity').value = String(save.rCity); $('rDef').checked = save.rDef;
+    $('lWhere').innerHTML = landSites().map((n, i) => `<option value="${i}">${n}</option>`).join(''); $('lWhere').value = String(save.lWhere); $('lDist').value = String(save.lDist);
+    let brief = '', best = '', why = '';
+    if (md === 'free') {
+      brief = save.freeStart === 'air' ? `Start in the air 7 km from ${(G.CITIES[save.startCity] || G.CITIES[0]).name}.` : `Take off from ${landSites()[save.startAp] || landSites()[0]}.`;
+      brief += ' No objectives: explore, bomb, land where you like. ' + (save.defence ? 'Missile sites will shoot at armed aircraft.' : 'Air defence is off.');
+    } else if (md === 'mission') {
+      const L = curLevel(), d = diffFor(L), cs = missionCities(L, save.mCities), n = cs.length;
+      brief = `Level ${L} (${LEVEL_NAMES[L]}): destroy ${d.sites} defence sites around ${cs.map((c) => c.name).join(', then ')}. ` + (n > 1 ? 'After each city, land at the airfield you are given to refuel and rearm. ' : 'Then land at the airfield you are given. ') +
+        `The clock runs the whole time. Up to ${d.maxMsl} missile${d.maxMsl > 1 ? 's' : ''} in the air${d.flak ? ', plus anti-aircraft guns' : ''}. Reward ${G.money(d.reward * n)}.`;
+      const bt = save.best['m' + L + 'x' + n]; best = bt ? 'Best time ' + fmtT(bt) : '';
+    } else if (md === 'rush') {
+      brief = `Air start next to ${(e[save.rCity] || e[0]).name} with ${save.rTime / 60} minutes on the clock. Every building you destroy adds to your score; bombs are reloaded when you run out. ` + (save.rDef ? 'The city shoots back.' : 'Air defence is off.');
+      const bs = save.best['r' + save.rTime]; best = bs ? 'Best score ' + G.money(bs) : '';
+    } else {
+      brief = `Start lined up ${save.lDist / 1000} km out from ${landSites()[save.lWhere]}. Lower the gear and flaps, touch down softly on the centreline near the touchdown zone, then stop. You are graded out of 100.`;
+      const bl = save.best['l' + save.lWhere]; best = bl ? 'Best landing ' + bl + ' / 100' : '';
+    }
+    if (!own) why = 'Buy this aircraft first, or switch on Sandbox';
+    else if (s.rocket && md !== 'free') why = 'The rocket only flies in Free flight';
+    else if ((md === 'mission' || md === 'rush') && (s.civil || !s.weapons.length)) why = 'This mode needs an armed aircraft';
+    else if (md === 'landing' && save.lWhere === G.AIRPORTS.length && s.span > 22) why = 'This aircraft is too large for the carrier';
+    $('mBrief').textContent = brief; $('modeBest').textContent = best;
+    $('btnStart').disabled = !!why; $('startNote').textContent = why; $('btnStart').textContent = 'Start — ' + MODE_NAMES[md];
   }
-  $('mLevel').onchange = (e) => { save.mLevelSel = +e.target.value; persist(); missionUI(); };
-  $('mTarget').onchange = (e) => { save.mTarget = +e.target.value; persist(); missionUI(); };
-  $('mAssist').onchange = (e) => { save.assist = +e.target.value; persist(); };
-  $('mFlares').onchange = (e) => { save.flareRefill = e.target.checked; persist(); };
-  $('btnMission').onclick = () => startMission();
+  document.querySelectorAll('.mode').forEach((b) => { b.onclick = () => setMode(b.dataset.mode); });
+  const bind = (id, key, num, chk) => { $(id).onchange = (e) => { save[key] = chk ? e.target.checked : num ? +e.target.value : e.target.value; persist(); modeUI(); }; };
+  bind('freeStart', 'freeStart'); bind('mCities', 'mCities', true); bind('mLevel', 'mLevelSel', true); bind('mTarget', 'mTarget', true); bind('mAssist', 'assist', true); bind('mFlares', 'flareRefill', false, true);
+  bind('rTime', 'rTime', true); bind('rCity', 'rCity', true); bind('rDef', 'rDef', false, true); bind('lWhere', 'lWhere', true); bind('lDist', 'lDist', true);
+  function startGame(md) {
+    if (g.state === 'hangar' && $('btnStart').disabled) return;
+    g.mode = md;
+    if (md === 'mission') startMission(); else if (md === 'rush') startRush(); else if (md === 'landing') startLanding(); else startFlight(save.freeStart === 'air');
+  }
+  function restart() { startGame(g.mode || 'free'); }
+  $('btnStart').onclick = () => startGame(save.mode);
+  // show the end-of-round summary
+  function endRound(title, text, again) {
+    g.state = 'pause'; G.audio.silence(); if (document.pointerLockElement) document.exitPointerLock();
+    $('objective').classList.add('hidden'); $('sumTitle').textContent = title; $('sumText').textContent = text; $('btnAgain').textContent = again || 'Play again'; $('summary').classList.remove('hidden');
+  }
+  const newBest = (key, v, lower) => { const o = save.best[key]; if (o == null || (lower ? v < o : v > o)) { save.best[key] = v; persist(); return true; } return false; };
   $('btnHelpClose').onclick = () => $('help').classList.add('hidden');
 
   // ---------- temp vectors
@@ -421,7 +468,7 @@
     const D = g.diff, mc = g.mission ? g.mission.city.name : null;
     if (!g.spec.civil && g.state === 'fly') {
       w.sams.forEach((s) => {
-        if (!s.alive || !(save.defence || s.city === mc)) return;
+        if (!s.alive || !(g.defence || s.city === mc)) return;
         const d = Math.hypot(f.pos.x - s.x, f.pos.z - s.z);
         if (d < D.range && f.agl > 70 && !f.onGround) {
           g.locked = true; s.cool -= dt;
@@ -602,7 +649,7 @@
   g.diff = diffFor(3);
   function clearMission() {
     if (g.wing) g.wing.forEach((wm) => scene.remove(wm.model));
-    g.wing = []; g.mission = null; $('objective').classList.add('hidden');
+    g.wing = []; g.mission = null; g.rush = null; g.landCh = null; g.landNav = null; $('objective').classList.add('hidden');
   }
   function ensureSites(city, n) {
     const w = g.world, R = (city.rx || city.r);
@@ -617,9 +664,7 @@
   }
   function setObjective(lines) { const o = $('objective'); o.innerHTML = lines.map((l, i) => `<div class="${i ? '' : 'ttl'}">${l}</div>`).join(''); o.classList.remove('hidden'); }
   function startMission() {
-    const s = G.AIRCRAFT[hIdx];
-    if (s.civil || !s.weapons.length) { $('mBrief').textContent = 'Choose an armed aircraft for a strike mission.'; return; }
-    const L = curLevel(), city = missionTarget(L);
+    const L = curLevel(), cities = missionCities(L, save.mCities), city = cities[0];
     // depart from an airfield that does not belong to the target
     let ap = save.startAp;
     const bad = (i) => i < G.AIRPORTS.length && ((G.AIRPORTS[i].city || 'New York') === city.name);
@@ -628,35 +673,50 @@
     startFlight(false);
     g.diff = diffFor(L);
     const targets = ensureSites(city, g.diff.sites);
-    g.mission = { level: L, city, targets, phase: 'attack', left: targets.length, total: targets.length, rtb: null, t: 0, wrongT: 0 };
+    g.mission = { level: L, cities, idx: 0, city, targets, phase: 'attack', left: targets.length, total: targets.length, rtb: null, t: 0, wrongT: 0, shown: -1 };
     targets.forEach((t) => { t.cool = 8 + Math.random() * 10; });
     if (save.assist >= 2) {
       const sp = G.aircraftById(g.spec.span > 22 ? 'f16' : g.spec.id);
       for (let i = 0; i < 2; i++) { const model = G.buildAircraft(sp, { noCockpit: true, lights: true, paint: sp === g.spec ? paintOf(sp.id) : null }); if (model.userData.gear) model.userData.gear.visible = false; scene.add(model); g.wing.push({ model, a: i * 3.14, next: 50 + i * 20 }); }
     }
     const d = Math.hypot(city.x - g.flight.pos.x, city.z - g.flight.pos.z);
-    msg('MISSION — LEVEL ' + L + ' (' + LEVEL_NAMES[L] + '): destroy the air defences of ' + city.name, 'big');
+    msg('MISSION — LEVEL ' + L + ' (' + LEVEL_NAMES[L] + '): destroy the air defences of ' + city.name + (cities.length > 1 ? ' — city 1 of ' + cities.length : ''), 'big');
     msg(targets.length + ' sites, ' + (d / 1000).toFixed(0) + ' km away' + (g.diff.flak ? ' — expect anti-aircraft fire' : '') + (g.wing.length ? ' — two wingmen are on station' : ''), '');
     updateObjective();
   }
   function updateObjective() {
     const m = g.mission; if (!m) return;
-    if (m.phase === 'attack') setObjective(['LEVEL ' + m.level + ' · ' + LEVEL_NAMES[m.level].toUpperCase() + ' — STRIKE ' + m.city.name.toUpperCase(), 'Destroy the defence sites: ' + (m.total - m.left) + ' / ' + m.total, 'Then land at the airfield you are given']);
-    else if (m.phase === 'rtb') setObjective(['LEVEL ' + m.level + ' — RETURN TO BASE', 'All ' + m.total + ' sites destroyed', 'Land at ' + m.rtb.name + ' and stop on the runway']);
+    const clock = '<span class="tm">TIME ' + fmtT(m.t) + '</span>' + (m.cities.length > 1 ? ' · CITY ' + (m.idx + 1) + ' / ' + m.cities.length : '');
+    if (m.phase === 'attack') setObjective(['LEVEL ' + m.level + ' · ' + LEVEL_NAMES[m.level].toUpperCase() + ' — STRIKE ' + m.city.name.toUpperCase(), clock, 'Destroy the defence sites: ' + (m.total - m.left) + ' / ' + m.total, 'Then land at the airfield you are given']);
+    else if (m.phase === 'rtb') setObjective(['LEVEL ' + m.level + ' — ' + (m.idx < m.cities.length - 1 ? 'LAND TO REFUEL AND REARM' : 'RETURN TO BASE'), clock, 'All ' + m.total + ' sites destroyed', 'Land at ' + m.rtb.name + ' and stop on the runway']);
+  }
+  // next leg of a multi-city mission: repaired, rearmed and lined up on the runway again
+  function nextCity(m, ap) {
+    const f = g.flight;
+    earn(Math.round(g.diff.reward * 0.3), m.city.name + ' cleared — stage ' + (m.idx + 1) + ' of ' + m.cities.length);
+    m.idx++; m.city = m.cities[m.idx];
+    f.reset(new V3(ap.x, g.spec.gearH, ap.z + 1650), 0, 0); f.health = 100; g.ammo.forEach((a) => { a.count = a.max; }); g.flares = g.spec.flares;
+    g.hasFlown = false; g.landing = false; g.hasFlownMission = false; g.samGrace = 25; g.gearPrev = f.gear; g.flapPrev = f.flaps; g.flapSet = f.flapsTarget;
+    m.targets = ensureSites(m.city, g.diff.sites); m.targets.forEach((t) => { t.cool = 8 + Math.random() * 10; });
+    m.left = m.total = m.targets.length; m.phase = 'attack'; m.rtb = null;
+    g.wing.forEach((wm) => { wm.model.visible = true; wm.next = 40 + Math.random() * 20; });
+    const d = Math.hypot(m.city.x - f.pos.x, m.city.z - f.pos.z);
+    msg('Refuelled and rearmed — next target: ' + m.city.name + ', ' + (d / 1000).toFixed(0) + ' km', 'big'); updateObjective();
   }
   function updateMission(dt) {
     const m = g.mission, f = g.flight; if (!m || g.state !== 'fly') return;
     m.t += dt;
+    if (Math.floor(m.t) !== m.shown) { m.shown = Math.floor(m.t); updateObjective(); }
     if (m.phase === 'attack') {
       const left = m.targets.filter((t) => t.alive).length;
       if (left !== m.left) {
         m.left = left;
         if (left > 0) { msg('Defence site destroyed — ' + left + ' left', 'big'); updateObjective(); }
         else {
-          const ok = G.AIRPORTS.filter((ap) => (ap.city || 'New York') !== m.city.name);
+          const nx = m.cities[m.idx + 1], ok = G.AIRPORTS.filter((ap) => (ap.city || 'New York') !== m.city.name && !(nx && (ap.city || 'New York') === nx.name));
           m.rtb = ok[Math.floor(Math.random() * ok.length)]; m.phase = 'rtb';
           earn(Math.round(g.diff.reward * 0.4), 'All defences of ' + m.city.name + ' destroyed');
-          msg('Return to base: land at ' + m.rtb.name, 'big'); updateObjective();
+          msg((nx ? 'Land at ' + m.rtb.name + ' to refuel and rearm for ' + nx.name : 'Return to base: land at ' + m.rtb.name), 'big'); updateObjective();
         }
       }
       // wingmen circle the target and take turns bombing a remaining site
@@ -679,20 +739,72 @@
       const ap = m.rtb;
       if (f.onGround && f.V < 2 && g.hasFlownMission) {
         if (Math.abs(f.pos.x - ap.x) < 700 && Math.abs(f.pos.z - ap.z) < 1950) {
+          if (m.idx < m.cities.length - 1) { nextCity(m, ap); return; }
           m.phase = 'done';
           const bonus = Math.round(g.diff.reward * (0.6 + f.health / 250));
           earn(bonus, 'Mission complete — level ' + m.level);
           if (save.mLevel <= m.level) save.mLevel = Math.min(10, m.level + 1); persist();
-          g.lastWasMission = true; g.state = 'pause'; G.audio.silence(); if (document.pointerLockElement) document.exitPointerLock();
-          $('objective').classList.add('hidden');
-          $('sumTitle').textContent = 'Mission complete';
-          $('sumText').textContent = 'Level ' + m.level + ' cleared: the defences of ' + m.city.name + ' are destroyed and you landed at ' + ap.name + '. Earned ' + G.money(g.sortie || 0) + '.' + (save.mLevelSel === 0 && m.level < 10 ? ' Next: level ' + save.mLevel + '.' : '');
-          $('btnAgain').textContent = save.mLevelSel === 0 && m.level < 10 ? 'Next mission (level ' + save.mLevel + ')' : 'Fly this mission again';
-          $('summary').classList.remove('hidden');
+          const n = m.cities.length, rec = newBest('m' + m.level + 'x' + n, Math.round(m.t), true);
+          endRound('Mission complete', 'Level ' + m.level + ' cleared in ' + fmtT(m.t) + (rec ? ' — a new best time' : ' (best ' + fmtT(save.best['m' + m.level + 'x' + n]) + ')') + ': the defences of ' + m.cities.map((c) => c.name).join(', ') + ' are destroyed and you landed at ' + ap.name + '. Earned ' + G.money(g.sortie || 0) + '.' + (save.mLevelSel === 0 && m.level < 10 ? ' Next: level ' + save.mLevel + '.' : ''),
+            save.mLevelSel === 0 && m.level < 10 ? 'Next mission (level ' + save.mLevel + ')' : 'Fly this mission again');
         } else if (m.t - m.wrongT > 12) { m.wrongT = m.t; msg('Wrong airfield — you must land at ' + ap.name, 'bad'); }
       }
     }
     if (!f.onGround) g.hasFlownMission = true;
+  }
+
+  // ---------- demolition rush: a fixed time to do as much damage as possible
+  function startRush() {
+    const e = enemyCities(), city = e[save.rCity] || e[0];
+    g.forceCity = city; startFlight(true, true);
+    g.rush = { t: save.rTime, total: save.rTime, city, shown: -1, rearmT: 0 };
+    msg('DEMOLITION RUSH — ' + city.name + ' is 7 km ahead', 'big'); updateRush(0);
+  }
+  function updateRush(dt) {
+    const r = g.rush; if (!r || g.state !== 'fly') return;
+    r.t -= dt;
+    if (Math.ceil(r.t) !== r.shown) {
+      r.shown = Math.ceil(r.t);
+      setObjective(['DEMOLITION RUSH — ' + r.city.name.toUpperCase(), '<span class="tm">TIME LEFT ' + fmtT(r.shown) + '</span>', 'Damage score ' + G.money(Math.max(0, g.sortie || 0)), 'Bombs reload when you run out']);
+      if (r.shown <= 10 && r.shown > 0) G.audio.beep(880, 0.08, 0.12);
+    }
+    if (g.ammo.length && g.ammo.every((a) => a.count <= 0)) { r.rearmT += dt; if (r.rearmT > 5) { r.rearmT = 0; g.ammo.forEach((a) => { a.count = a.max; }); msg('Bombs reloaded', ''); } }
+    if (r.t <= 0) {
+      const sc = Math.max(0, Math.round(g.sortie || 0)), rec = sc > 0 && newBest('r' + r.total, sc);
+      endRound("Time's up", 'You did ' + G.money(sc) + ' of damage to ' + r.city.name + ' in ' + fmtT(r.total) + (rec ? ' — a new best score.' : '. Best: ' + G.money(save.best['r' + r.total] || 0) + '.'), 'Rush again');
+    }
+  }
+
+  // ---------- landing challenge: start on final approach, graded on the touchdown
+  function startLanding() {
+    const s = G.AIRCRAFT[hIdx], CV = G.CARRIER, cv = save.lWhere === G.AIRPORTS.length, ap = cv ? CV : (G.AIRPORTS[save.lWhere] || G.AIRPORTS[0]);
+    startFlight(true, true);
+    const f = g.flight, endZ = cv ? CV.z + 166 : ap.z + 1800, gy = cv ? CV.deckY : 0, d = save.lDist;
+    const vs = Math.sqrt(2 * s.mass * 9.81 / (1.225 * s.S * (s.CL0 + s.flapCL + s.CLa * s.alphaStall * 0.9)));
+    f.reset(new V3(ap.x, gy + s.gearH + d * 0.0524 + 20, endZ + d), 0, clamp(vs * 1.55, 65, 150)); f.throttle = 0.45; f.rpm = 0.45;
+    g.camFwd.set(0, 0, -1); g.gearPrev = f.gear; g.flapPrev = f.flaps; g.flapSet = f.flapsTarget;
+    g.landCh = { ap, cv, endZ, td: null, t: 0, shown: -1, idealZ: cv ? CV.z + 70 : ap.z + 1500, offS: cv ? 10 : 22, zS: cv ? 90 : 450, limit: s.sinkLimit * (cv ? 1.9 : 1) };
+    g.landNav = { phase: 'rtb', rtb: { x: ap.x, z: cv ? CV.z + 70 - 1700 : ap.z, name: cv ? 'Carrier' : ap.name } };
+    msg('LANDING CHALLENGE — ' + ap.name + ', ' + (d / 1000) + ' km ahead', 'big'); updateLanding(0);
+  }
+  function updateLanding(dt) {
+    const c = g.landCh, f = g.flight; if (!c || g.state !== 'fly') return;
+    c.t += dt;
+    if (Math.floor(c.t * 2) !== c.shown) {
+      c.shown = Math.floor(c.t * 2);
+      const dz = f.pos.z - c.endZ;
+      setObjective(['LANDING CHALLENGE — ' + c.ap.name.toUpperCase(), '<span class="tm">TIME ' + fmtT(c.t) + '</span> · ' + (c.td ? 'TOUCHDOWN ' + Math.round(c.td.sink * 196.85) + ' FT/MIN' : dz > 0 ? 'THRESHOLD ' + (dz / 1000).toFixed(1) + ' KM' : 'OVER THE ' + (c.cv ? 'DECK' : 'RUNWAY')),
+        c.td ? 'Brake [B] and stop' : 'Gear ' + (f.gearTarget ? 'down ✓' : 'UP — press G') + ' · flaps ' + (f.flapsTarget >= 1 ? 'full ✓' : 'press F'), 'Soft touchdown, on the centreline, in the touchdown zone']);
+    }
+    if (c.td && f.onGround && f.V < 2) {
+      const on = c.cv ? g.world.onDeck(c.td.x, c.td.z) : Math.abs(c.td.x - c.ap.x) < 60 && Math.abs(c.td.z - c.ap.z) < 1900;
+      const soft = on ? Math.round(40 * clamp(1 - (c.td.sink - 0.6) / (c.limit - 0.6), 0, 1)) : 0, line = on ? Math.round(30 * clamp(1 - Math.abs(c.td.x - c.ap.x) / c.offS, 0, 1)) : 0, spot = on ? Math.round(30 * clamp(1 - Math.abs(c.td.z - c.idealZ) / c.zS, 0, 1)) : 0;
+      const sc = soft + line + spot, grade = sc >= 90 ? 'S' : sc >= 75 ? 'A' : sc >= 55 ? 'B' : sc >= 35 ? 'C' : 'D', rec = sc > 0 && newBest('l' + save.lWhere, sc);
+      if (sc > 0) earn(sc * 600, 'Landing grade ' + grade);
+      endRound(on ? 'Landing grade ' + grade + ' — ' + sc + ' / 100' : 'Missed the ' + (c.cv ? 'deck' : 'runway'),
+        on ? 'Touchdown ' + Math.round(c.td.sink * 196.85) + ' ft/min: ' + soft + ' / 40.  Centreline, ' + Math.abs(c.td.x - c.ap.x).toFixed(1) + ' m off: ' + line + ' / 30.  Touchdown point, ' + Math.abs(c.td.z - c.idealZ).toFixed(0) + ' m from the zone: ' + spot + ' / 30.  Time ' + fmtT(c.t) + '.' + (rec ? '  A new best landing.' : '')
+          : 'You came down away from ' + c.ap.name + '. Line up with the marker and try again.', 'Fly it again');
+    }
   }
 
   // ---------- per-frame aircraft visuals
@@ -806,9 +918,12 @@
     G.fx.explosion(f.pos, 55, camera.position); G.audio.explosion(camera.position.distanceTo(f.pos), 1.5);
     G.fx.addEmitter({ x: f.pos.x, y: Math.max(1, g.world.groundHeight(f.pos.x, f.pos.z) + 1), z: f.pos.z, size: 10, life: 40, fire: 20 });
     if (document.pointerLockElement) document.exitPointerLock();
-    g.lastWasMission = !!g.mission; if (g.mission) g.mission.phase = 'failed';
-    $('btnAgain').textContent = g.lastWasMission ? 'Retry mission' : 'Fly again';
-    $('sumTitle').textContent = g.lastWasMission ? 'Mission failed' : 'Aircraft lost'; $('sumText').textContent = reason + '.  Sortie earnings kept: ' + G.money(g.sortie || 0) + '.';
+    if (g.mission) g.mission.phase = 'failed';
+    const md = g.mode;
+    $('objective').classList.add('hidden');
+    $('btnAgain').textContent = md === 'mission' ? 'Retry mission' : md === 'rush' ? 'Rush again' : md === 'landing' ? 'Fly it again' : 'Fly again';
+    $('sumTitle').textContent = md === 'mission' ? 'Mission failed' : md === 'rush' ? 'Rush over — aircraft lost' : md === 'landing' ? 'Landing failed' : 'Aircraft lost';
+    $('sumText').textContent = reason + '.  ' + (md === 'rush' ? 'A crash does not count toward your best score. ' : '') + 'Sortie earnings kept: ' + G.money(g.sortie || 0) + '.';
     setTimeout(() => { if (g.state === 'dead') $('summary').classList.remove('hidden'); }, 2800);
   }
 
@@ -848,6 +963,7 @@
         } else if (ev.type === 'touchdown') {
           G.audio.touchdown(ev.sink); fx.shake = Math.max(fx.shake, 0.2 + ev.sink * 0.1);
           g.bump = ev.sink; // compresses the struts
+          if (g.landCh && !g.landCh.td) g.landCh.td = { sink: ev.sink, x: f.pos.x, z: f.pos.z };
           const legs = g.model.userData.legs || [];
           legs.forEach((l) => { // tyre smoke where each main wheel spins up
             if (l.nose) return; _a.set(l.x, -g.spec.gearH + 0.35, l.root.position.z).applyQuaternion(f.q).add(f.pos);
@@ -893,7 +1009,7 @@
       predT -= dt; if (predT <= 0) { predT = 0.05; predictImpact(); }
     } else if (g.state === 'dead') { g.deadT += dt; g.camYaw += dt * 0.15; g.impact = null; }
 
-    updateBombs(dt); updateThreats(dt); updateTraffic(dt); updateNaval(dt); updateMission(dt);
+    updateBombs(dt); updateThreats(dt); updateTraffic(dt); updateNaval(dt); updateMission(dt); updateRush(dt); updateLanding(dt);
     w.update(dt, camera.position); syncModel(dt); updateCamera(dt); fx.update(dt, camera.position);
     const cockpit = g.view === 1 && g.state === 'fly';
     _a.copy(camera.position).sub(f.pos).normalize();

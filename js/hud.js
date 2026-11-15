@@ -174,8 +174,8 @@
     });
 
     // mission target markers and steering cue
-    const ms = g.mission;
-    if (ms && g.assistLevel() >= 1 && (ms.phase === 'attack' || ms.phase === 'rtb')) {
+    const ms = g.mission || g.landNav;
+    if (ms && (g.landNav || g.assistLevel() >= 1) && (ms.phase === 'attack' || ms.phase === 'rtb')) {
       const pts = ms.phase === 'attack' ? ms.targets.filter((t) => t.alive).map((t) => ({ x: t.x, y: 10, z: t.z, n: 'SAM' })) : [{ x: ms.rtb.x, y: 2, z: ms.rtb.z + 1700, n: 'LAND ' + ms.rtb.name.toUpperCase() }];
       let best = null, bd = 1e12; x.font = '12px Consolas, monospace';
       pts.forEach((t) => {
@@ -213,7 +213,8 @@
     G.AIRPORTS.forEach((a) => { x.fillStyle = '#e8edf2'; x.fillRect((a.x - f.pos.x) * ppm - 1.5, (a.z - 1800 - f.pos.z) * ppm, 3, Math.max(4, 3600 * ppm)); });
     wd.sams.forEach((sm) => { if (sm.alive && Math.abs(sm.x - f.pos.x) < range && Math.abs(sm.z - f.pos.z) < range) dot(sm.x, sm.z, '#ff3b30', 3.2); });
     if (g.mission && g.mission.phase === 'attack') g.mission.targets.forEach((t) => { if (t.alive) { x.strokeStyle = '#ffffff'; x.lineWidth = 1.2; x.beginPath(); x.arc((t.x - f.pos.x) * ppm, (t.z - f.pos.z) * ppm, 6, 0, 6.283); x.stroke(); } });
-    if (g.mission && g.mission.phase === 'rtb') { x.strokeStyle = '#6dff8f'; x.lineWidth = 2; x.beginPath(); x.arc((g.mission.rtb.x - f.pos.x) * ppm, (g.mission.rtb.z - f.pos.z) * ppm, 8, 0, 6.283); x.stroke(); }
+    const rtbP = g.mission && g.mission.phase === 'rtb' ? g.mission.rtb : g.landNav ? g.landNav.rtb : null;
+    if (rtbP) { x.strokeStyle = '#6dff8f'; x.lineWidth = 2; x.beginPath(); x.arc((rtbP.x - f.pos.x) * ppm, (rtbP.z - f.pos.z) * ppm, 8, 0, 6.283); x.stroke(); }
     if (range >= 30000) { x.fillStyle = '#e8edf2'; x.font = '10px Consolas, monospace'; x.textAlign = 'center'; G.CITIES.forEach((ct) => { if (ct.town) return; x.save(); x.translate((ct.x - f.pos.x) * ppm, (ct.z - f.pos.z) * ppm); x.rotate(-yaw); x.fillText(ct.name, 0, -8); x.restore(); }); }
     g.traffic.forEach((t) => { if (t.model.visible) dot(t.model.position.x, t.model.position.z, '#ffffff', 2); });
     g.missiles.forEach((m) => dot(m.pos.x, m.pos.z, '#ffe04a', 2.5));
