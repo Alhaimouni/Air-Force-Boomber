@@ -380,10 +380,10 @@
       tower: ['glassBox', 'twisted', 'twisted', 'tapered', 'cylinder', 'ellipse', 'slantTop', 'octagon', 'weddingCake', 'stacked', 'hexTower', 'notched', 'triangle'] },
     cairo: { road: 0x5a544a, STONE: [0xcdb98e, 0xbfa97c, 0xd8c8a0], CONC: [0xb8a888, 0xa89878, 0xc4b494], BRICK: [0xa8764e, 0xb88a5e, 0x9a6a48, 0xc09a6c, 0xae8256], PAINT: [0xd8c8a0, 0xcdb98e, 0xe2d4b0, 0xc4ae84],
       ROOF: [0xb8a888, 0xa89878], lawn: 0xb89c6c, walk: 0x8a7e68, park: 0x6f8a4a, trees: false,
-      low: ['flats', 'flats', 'flats', 'smallApt'], mid: ['flatsMid', 'flatsMid', 'apartment', 'apartment', 'brutalist', 'lshape'], tower: ['glassBox', 'setback', 'finSlab', 'cross', 'pyramidTop', 'cylinder'] },
-    levant: { road: 0x5a544a, STONE: [0xece2cc, 0xe2d6bc, 0xf2ead8], CONC: [0xdcd2bc, 0xd0c6b0], BRICK: [0xe8dec8, 0xdcd0b6, 0xf0e8d4, 0xe2d8c0], PAINT: [0xf0e8d4, 0xe8dec8, 0xf4eee0, 0xe0d4ba],
-      ROOF: [0xd8cdb6, 0xc8bca4], lawn: 0xbfae88, walk: 0x9a917c, park: 0x6f8a4a, trees: false,
-      low: ['flats', 'flats', 'flats', 'flats', 'smallApt'], mid: ['flatsMid', 'flatsMid', 'flatsMid', 'apartment', 'terrace'], tower: ['glassBox', 'tapered', 'slantTop', 'ellipse'] }
+      low: ['flats', 'flats', 'flats', 'smallApt', 'flats', 'masjid'], mid: ['flatsMid', 'flatsMid', 'apartment', 'apartment', 'brutalist', 'lshape', 'masjid'], tower: ['glassBox', 'setback', 'finSlab', 'cross', 'pyramidTop', 'cylinder'] },
+    levant: { road: 0x5a544a, GLASS: [0x2c4a6a, 0x3f6b7c, 0x4d6f8f, 0x5b86a8, 0x2e5d7a, 0x6b5a3a], STONE: [0xf0e8d6, 0xe6dcc6, 0xf4eee0], CONC: [0xdcd2bc, 0xd0c6b0], BRICK: [0xece2cc, 0xe2d6bc, 0xf2ead8, 0xe6dcc6], PAINT: [0xf2ecdc, 0xeae2cf, 0xf6f1e4, 0xe4dac4, 0xefe6d2, 0xf8f4ea],
+      ROOF: [0xd8cdb6, 0xc8bca4], lawn: 0xc4b48e, walk: 0xa39a84, park: 0x6f8a4a, trees: false,
+      low: ['ammanApt', 'ammanApt', 'ammanApt', 'ammanApt', 'flats', 'ammanVilla', 'ammanVilla', 'masjid'], mid: ['ammanBlock', 'ammanBlock', 'ammanBlock', 'flatsMid', 'flatsMid', 'hotel', 'masjid', 'mall'], tower: ['glassBox', 'tapered', 'slantTop', 'ellipse', 'notched'] }
   };
   let ST = BASE;
   function setStyle(name) {
@@ -487,20 +487,260 @@
     gpyr(gb, w, d, h) {
       const s = w; gb.prism(GB.rect(0, 0, s, s), 0, s * 0.62, C(0xc8ae78), null, { top: 0.01 });
       return { name: s > 200 ? 'Great Pyramid' : 'Pyramid', fill: 0.33, hp: 30, value: s > 200 ? 900000 : 400000 };
-    },
-    citadel(gb) {
+    }
+  });
+
+  // ---------- Jordan: limestone apartment blocks, villas, neighbourhood mosques and the country's landmarks
+  const ubox = new T.BoxGeometry(1, 1, 1);
+  const roofKit = (gb, x, h, z, ww, dd) => { // what every Amman roof carries: parapet, stair room, water tanks, solar heater, dish
+    const col = C(0xe6dcc6);
+    gb.box(x, h, z - dd / 2 + 0.2, ww, 0.9, 0.4, col); gb.box(x, h, z + dd / 2 - 0.2, ww, 0.9, 0.4, col);
+    gb.box(x - ww / 2 + 0.2, h, z, 0.4, 0.9, dd, col); gb.box(x + ww / 2 - 0.2, h, z, 0.4, 0.9, dd, col);
+    gb.box(x + ww * 0.22, h, z - dd * 0.2, 3.4, 2.7, 4, col, null, C(0xbfb5a0));
+    const n = R.int(2, 4);
+    for (let i = 0; i < n; i++) { const tx = x - ww * 0.3 + i * 2.4, tz = z + dd * 0.22; gb.box(tx, h, tz, 1.5, 1.3, 1.5, C(0x8a8c8e)); gb.cyl(tx, h + 1.3, tz, 0.85, 1.5, 8, C(R.chance(0.8) ? 0xf2f2ee : 0x2c2c2c)); }
+    if (R.chance(0.7)) gb.add(ubox, x - ww * 0.15, h + 1.1, z - dd * 0.22, 2.6, 0.12, 1.7, C(0x1f2c44), 0.6, 0, 0);
+    if (R.chance(0.6)) gb.add(hemi, x + ww * 0.05, h + 1.2, z + dd * 0.05, 0.8, 0.35, 0.8, C(0xd8d8d8), 2.2, 0, 0.4);
+  };
+  lows.ammanApt = function (gb, w, d) { // rows of four- to six-storey white limestone apartment buildings
+    const alongX = w >= d, len = alongX ? w : d, n = R.int(3, 4), step = len / n;
+    for (let i = 0; i < n; i++) {
+      const o = -len / 2 + step * (i + 0.5), fl = R.int(3, 6), h = fl * 3.2, bw = step * R.range(0.72, 0.86), bd = R.range(17, 24), col = pc(PAINT);
+      const x = alongX ? o : R.range(-3, 3), z = alongX ? R.range(-3, 3) : o, ww = alongX ? bw : bd, dd = alongX ? bd : bw;
+      gb.box(x, 0, z, ww, h, dd, col, fc(3.0, 3.2, 1), C(0xc9bfa8));
+      if (R.chance(0.45)) for (let f = 1; f < fl; f++) gb.box(x, f * 3.2, z + dd / 2 + 0.5, ww * 0.5, 1.0, 1.1, C(0xdcd2bc)); // balcony stack
+      roofKit(gb, x, h, z, ww, dd);
+    }
+  };
+  lows.ammanVilla = function (gb, w, d) { // stone villas behind garden walls, some with red tiled roofs
+    const alongX = w >= d, len = alongX ? w : d, n = 3, step = len / n;
+    for (let i = 0; i < n; i++) {
+      const o = -len / 2 + step * (i + 0.5), x = alongX ? o : 0, z = alongX ? 0 : o, s = R.range(13, 17), col = pc(PAINT), h = R.chance(0.6) ? 7 : 10.2;
+      gb.box(x, 0, z, s, h, s * 0.85, col, fc(3.2, 3.4, 1), C(0xc9bfa8));
+      if (R.chance(0.5)) gb.prism(GB.rect(x, z, s + 1.4, s * 0.85 + 1.4), h, h + 3.4, C(R.pick([0xa8452c, 0x9a3d28, 0xb4553a])), null, { top: 0.08 });
+      else { gb.box(x + s * 0.2, h, z, 3, 2.6, 3.4, col); gb.cyl(x - s * 0.25, h, z + 1, 0.8, 1.5, 8, C(0xf2f2ee)); }
+      gb.box(x + s * 0.62, 0, z + s * 0.2, s * 0.4, 3.2, s * 0.45, col, fc(3, 3.2, 1), C(0xc9bfa8));
+      const gw = step * 0.9, gd = 40, wc = C(0xd8ceb8);
+      gb.box(x, 0, z - gd / 2, gw, 1.8, 0.4, wc); gb.box(x, 0, z + gd / 2, gw, 1.8, 0.4, wc);
+      for (let k = 0; k < 3; k++) gb.add(cone, x - gw * 0.4 + k * 2.6, 4.5, z + gd * 0.36, 1.3, 9, 1.3, C(0x2f4a2a)); // cypress trees
+      gb.add(sphere, x + gw * 0.36, 3, z - gd * 0.3, 2.6, 2.6, 2.6, C(0x55693a));
+    }
+  };
+  function masjid(gb, x, z, s, domeCol, stone) { // neighbourhood mosque: prayer hall, dome and a slender minaret
+    gb.box(x, 0, z, s, 7, s, stone, fc(3.4, 7, 4), C(0xcfc5ae));
+    gb.cyl(x, 7, z, s * 0.3, 2, 14, stone); gb.add(hemi, x, 9, z, s * 0.3, s * 0.3, s * 0.3, domeCol);
+    spire(gb, x, 9 + s * 0.3, z, 0.4, 3, C(0xc9a94a));
+    const mx = x + s * 0.5 + 2.6, mz = z - s * 0.5 + 2;
+    gb.box(mx, 0, mz, 3.6, 7, 3.6, stone); gb.cyl(mx, 7, mz, 1.3, 19, 8, stone); gb.cyl(mx, 21, mz, 2.2, 0.8, 8, stone); gb.add(cone, mx, 28.5, mz, 1.5, 5, 1.5, domeCol);
+  }
+  mids.masjid = function (gb, w, d) { masjid(gb, 0, 0, Math.min(w, d) * 0.6, C(R.pick([0x3f8f6a, 0x4a9bd1, 0xd8d2c0, 0x2f8f8a])), pc(PAINT)); };
+  lows.masjid = function (gb, w, d) { masjid(gb, 0, 0, Math.min(w, d) * 0.5, C(R.pick([0x3f8f6a, 0x4a9bd1, 0xd8d2c0])), pc(PAINT)); };
+  mids.ammanBlock = function (gb, w, d, h) { // commercial block: shopfronts below, stone-clad offices or flats above
+    const hh = Math.max(h, 15), col = pc(PAINT);
+    gb.box(0, 0, 0, w, 4.6, d, C(R.pick([0x27323d, 0x3a2f28, 0x2c3a44])), fc(4.5, 4.6, 2));
+    gb.box(0, 4.6, 0, w + 1.6, 0.5, d + 1.6, C(R.pick([0xb0261e, 0x1f6f4a, 0x1c4fa0, 0xd8a01e, 0xe6dcc6])));
+    gb.box(0, 5.1, 0, w * 0.95, hh - 5.1, d * 0.95, col, fc(2.9, 3.2, R.chance(0.6) ? 1 : 3), C(0xc9bfa8));
+    roofKit(gb, 0, hh, 0, w * 0.95, d * 0.95);
+    if (R.chance(0.35)) { gb.box(w * 0.2, hh, d * 0.3, 0.3, 5, 0.3, C(0x555555)); gb.box(w * 0.2, hh + 3, d * 0.3, 9, 4, 0.3, C(R.pick([0xb0261e, 0x1c4fa0, 0xf2f2ee]))); }
+  };
+  // tiered semicircular theatre cut into a hillside, open toward +z
+  function theatre(gb, col, dk, R0, tiers) {
+    for (let i = 0; i < tiers; i++) {
+      const r0 = R0 + i * 3.2, r1 = r0 + 3.2, poly = [];
+      for (let k = 0; k <= 18; k++) { const a = Math.PI + k / 18 * Math.PI; poly.push([Math.cos(a) * r1, Math.sin(a) * r1]); }
+      for (let k = 18; k >= 0; k--) { const a = Math.PI + k / 18 * Math.PI; poly.push([Math.cos(a) * r0, Math.sin(a) * r0]); }
+      gb.prism(poly, 0, 2 + i * 2.4, i % 5 === 4 ? dk : col);
+    }
+    const RO = R0 + tiers * 3.2;
+    gb.cyl(0, 0, 0, R0, 0.5, 24, dk);
+    gb.box(0, 0, 9, RO * 1.5, 8, 5, col, fc(4, 8, 4), dk);
+    for (let i = -5; i <= 5; i++) gb.cyl(i * RO * 0.13, 0, 4.5, 0.8, 9, 8, col);
+    gb.box(0, 9, 4.5, RO * 1.5, 1.2, 2.2, col);
+    return RO;
+  }
+  const columnRow = (gb, x0, z0, x1, z1, n, h, col) => { for (let i = 0; i < n; i++) { const t = n > 1 ? i / (n - 1) : 0; gb.cyl(x0 + (x1 - x0) * t, 0, z0 + (z1 - z0) * t, 0.85, h, 8, col); } };
+  const minaret = (gb, x, z, h, stone, cap, r) => {
+    r = r || 2.2; gb.box(x, 0, z, r * 2.6, h * 0.22, r * 2.6, stone); gb.cyl(x, h * 0.22, z, r, h * 0.5, 10, stone); gb.cyl(x, h * 0.72, z, r * 1.6, 1.2, 10, stone);
+    gb.cyl(x, h * 0.72 + 1.2, z, r * 0.75, h * 0.16, 10, stone); gb.add(cone, x, h * 0.94, z, r * 0.95, h * 0.12, r * 0.95, cap);
+  };
+  // sandstone cliff: a flat carved face on +z with broken rock piled behind and above it
+  function cliff(gb, w, d, h, col, dk) {
+    gb.box(0, 0, 0, w, h, d, col, null, dk);
+    for (let i = 0; i < 7; i++) {
+      const rx = R.range(w * 0.14, w * 0.3), px = R.range(-w * 0.42, w * 0.42), pz = R.range(-d * 0.6, d * 0.1), poly = [];
+      for (let k = 0; k < 9; k++) { const a = k / 9 * 6.2832, rr = rx * R.range(0.7, 1.15); poly.push([px + Math.cos(a) * rr, pz + Math.sin(a) * rr * R.range(0.7, 1.1)]); }
+      gb.prism(poly, 0, h * R.range(0.75, 1.3), i % 2 ? dk : col, null, { top: R.range(0.55, 0.85) });
+    }
+  }
+  // carved Nabataean façade standing proud of a cliff face at z = zf
+  function nabFacade(gb, x, zf, w, h, lt, dk, tall) {
+    const lo = tall ? h * 0.48 : h * 0.72, nc = tall ? 6 : 4;
+    gb.box(x, 0, zf + 0.2, w * 0.3, lo * 0.7, 0.6, dk);                                        // doorway in shadow
+    for (let i = 0; i < nc; i++) gb.cyl(x - w / 2 + w * (i + 0.5) / nc, 0, zf + 1.6, w * 0.035, lo, 10, lt);
+    gb.box(x, lo, zf + 1.2, w * 1.04, h * 0.06, 3, lt);
+    gb.gable(x, lo + h * 0.06, zf + 1.2, w * (tall ? 0.62 : 1.0), 2.6, h * 0.1, lt, true, lt);
+    if (tall) { // upper storey: round tholos between two half-pediments, topped by an urn
+      const y = lo + h * 0.17;
+      gb.cyl(x, y, zf + 1.6, w * 0.13, h * 0.2, 14, lt); gb.add(cone, x, y + h * 0.25, zf + 1.6, w * 0.15, h * 0.1, w * 0.15, lt); gb.add(sphere, x, y + h * 0.33, zf + 1.6, w * 0.035, h * 0.045, w * 0.035, lt);
+      [-1, 1].forEach((s) => { gb.box(x + s * w * 0.36, y, zf + 1.4, w * 0.2, h * 0.2, 2.4, lt); gb.gable(x + s * w * 0.36, y + h * 0.2, zf + 1.4, w * 0.22, 2.4, h * 0.06, lt, true, lt); });
+    }
+  }
+  Object.assign(landmarks, {
+    citadel(gb) { // Jabal al-Qal'a: Temple of Hercules, Umayyad Palace, walls
       const col = C(0xe2d6bc), dk = C(0xcabd9f);
-      gb.box(0, 0, 0, 220, 9, 150, dk); gb.box(-60, 9, 20, 70, 7, 46, col, fc(5, 7, 4));
-      for (let i = 0; i < 6; i++) { gb.cyl(30 + i * 9, 9, -30, 1.7, i < 3 ? 15 : 7 + i, 12, col); }
-      gb.box(39, 24, -30, 22, 2.4, 4, col);
-      for (let i = 0; i < 5; i++) gb.box(-80 + i * 34, 9, -55, 22, R.range(2, 6), 3, col);
-      gb.cyl(70, 9, 40, 14, 5, 20, col, null, { capCol: dk });
-      return { name: 'Amman Citadel', value: 250000, hp: 3, fill: 0.1 };
+      gb.box(0, 0, 0, 250, 12, 170, dk); gb.box(0, 12, 0, 236, 1, 156, C(0xd6c9a8));
+      for (let i = 0; i < 6; i++) gb.cyl(40 + i * 8, 13, -34, 1.8, i < 3 ? 13 : 5 + i * 1.2, 12, col);     // standing columns of the temple
+      gb.box(48, 26, -34, 21, 2.6, 4.4, col); gb.box(60, 13, -22, 50, 1.2, 28, col);
+      gb.box(-62, 13, 26, 46, 11, 46, col, fc(5, 11, 4), dk); gb.add(hemi, -62, 24, 26, 15, 13, 15, C(0x8a8478)); // Umayyad audience hall and its dome
+      gb.box(-62, 13, -18, 60, 4, 30, col, fc(5, 4, 4)); gb.cyl(-14, 13, 44, 9, 2.5, 20, col, null, { capCol: dk });
+      [[-118, 0, 3, 150], [118, 0, 3, 150], [0, -80, 236, 3], [0, 80, 236, 3]].forEach((q) => gb.box(q[0], 12, q[1], q[2], 5, q[3], col));
+      [[-118, -80], [118, -80], [118, 80], [-118, 80], [0, -80]].forEach((q) => gb.box(q[0], 12, q[1], 9, 9, 9, col));
+      return { name: 'Amman Citadel', value: 250000, hp: 4, fill: 0.12, ch: 30 };
     },
-    flagpole(gb) {
-      gb.cyl(0, 0, 0, 1.6, 126, 10, C(0xd8d8d8), null, { top: 0.5 }); gb.box(13, 104, 0, 24, 14, 0.4, C(0x1f1f1f)); gb.box(13, 96, 0, 24, 5, 0.42, C(0x1a7a3a)); gb.box(13, 110, 0, 24, 5, 0.44, C(0xeeeeee));
-      gb.box(0, 0, 0, 20, 2, 20, C(0xcabd9f));
+    romanTheatre(gb) {
+      const col = C(0xe0d2b4), dk = C(0xc4b594);
+      theatre(gb, col, dk, 20, 14);
+      gb.box(0, 0, 44, 150, 0.4, 56, C(0xcfc3a8)); columnRow(gb, -70, 70, 70, 70, 16, 8, col); gb.box(0, 8, 70, 142, 1, 1.8, col); // Hashemite Plaza colonnade
+      return { name: 'Roman Theatre', value: 300000, hp: 5, fill: 0.25, ch: 36 };
+    },
+    kingAbdullah(gb) { // King Abdullah I Mosque: octagonal hall under a blue mosaic dome
+      const st = C(0xf0e8d6), blue = C(0x3f93cf), bl2 = C(0x2f77b0);
+      gb.box(0, 0, 0, 120, 1, 110, C(0xd8ceb8));
+      gb.prism(GB.ngon(0, 0, 38, 38, 8, 0.39), 1, 15, st, fc(4, 14, 4), { capCol: C(0xd6ccb6) });
+      gb.cyl(0, 15, 0, 27, 4, 24, bl2); gb.add(hemi, 0, 19, 0, 27, 19, 27, blue); spire(gb, 0, 38, 0, 0.7, 7, C(0xc9a94a));
+      minaret(gb, -48, 34, 56, st, blue); minaret(gb, 48, 34, 56, st, blue);
+      gb.box(0, 1, 48, 60, 9, 12, st, fc(5, 9, 4));
+      return { name: 'King Abdullah I Mosque', value: 320000, hp: 3, fill: 0.3, ch: 40 };
+    },
+    abuDarwish(gb) { // black and white striped stone
+      const w = C(0xf2efe6), k = C(0x23211f);
+      for (let i = 0; i < 7; i++) gb.box(0, i * 2, 0, 44, 2, 44, i % 2 ? k : w);
+      gb.cyl(0, 14, 0, 11, 3, 16, k); gb.add(hemi, 0, 17, 0, 11, 10, 11, w);
+      [[-17, -17], [17, -17], [17, 17], [-17, 17]].forEach((p) => gb.add(hemi, p[0], 14, p[1], 4, 4, 4, w));
+      for (let i = 0; i < 12; i++) gb.cyl(28, i * 3.2, -16, 2.2, 3.2, 10, i % 2 ? k : w);
+      gb.cyl(28, 38.4, -16, 3.2, 1, 10, w); gb.add(cone, 28, 42.5, -16, 2, 6, 2, k);
+      return { name: 'Abu Darwish Mosque', value: 200000, hp: 2.5, fill: 0.3 };
+    },
+    husseinMosque(gb) { // Grand Husseini Mosque, downtown
+      const st = C(0xead8c4), pk = C(0xd9b8a4);
+      gb.box(0, 0, 0, 64, 12, 40, st, fc(5, 12, 4), C(0xcfc0a8)); gb.box(0, 0, 26, 64, 7, 12, pk, fc(5, 7, 4));
+      gb.add(hemi, 0, 12, -4, 7, 6, 7, C(0x4f8a6a));
+      minaret(gb, -36, 22, 38, pk, C(0xd8d2c0), 2); minaret(gb, 36, 22, 52, st, C(0xd8d2c0), 2.3);
+      return { name: 'Grand Husseini Mosque', value: 220000, hp: 2.5, fill: 0.4 };
+    },
+    rotana(gb) { // Amman Rotana, the tallest tower in Jordan, with the Abdali podium
+      const gl = C(0x5b86a8), f = fc(2.2, 3.7, 2);
+      gb.box(0, 0, 0, 96, 14, 80, C(0x2c3a44), fc(4, 7, 2), C(0x9aa3aa));
+      gb.prism(GB.ngon(-14, -6, 19, 13, 28), 14, 150, gl, f, { capCol: C(0x8f9aa0) });
+      gb.prism(GB.ngon(-14, -6, 19, 13, 28), 150, 188, gl, f, { top: 0.3, cx: -26, cz: -6, capCol: C(0x8f9aa0) });
+      gb.box(30, 14, 18, 26, 96, 24, C(0x3f6b7c), fc(2.4, 3.7, 2), C(0x6a7078)); gb.box(30, 110, 18, 12, 6, 12, C(0x8a8c8e));
+      return { name: 'Amman Rotana Tower', ch: 188, mult: 3, fill: 0.3 };
+    },
+    abdali(gb) { // Abdali Boulevard: glass towers over a shopping street
+      gb.box(0, 0, 0, 120, 10, 30, C(0xe6dcc6), fc(4, 5, 2), C(0x9fb8c6));
+      gb.box(-40, 10, -34, 30, 118, 28, C(0x2e5d7a), fc(2.4, 3.7, 2), C(0x6a7078)); gb.wedge(-55, -25, -48, -20, 128, 128, 140, C(0x2e5d7a), null, C(0xb9c2c9));
+      gb.cyl(4, 10, 36, 16, 96, 22, C(0x4d6f8f), fc(2.2, 3.7, 2), { capCol: C(0x6a7078) });
+      gb.box(44, 10, -30, 28, 84, 28, C(0xdcd2bc), fc(2.8, 3.5, 1), C(0x6a7078)); gb.box(44, 94, -30, 14, 6, 14, C(0x8a8c8e));
+      gb.box(-44, 10, 36, 26, 60, 26, C(0x6b5a3a), fc(2.6, 3.6, 2), C(0x6a7078));
+      return { name: 'Abdali Boulevard', ch: 120, mult: 2.5, fill: 0.3 };
+    },
+    jordanGate(gb) { // twin towers on a shared podium at the Sixth Circle
+      const gl = C(0x6f93b3), f = fc(2.4, 3.7, 2);
+      gb.box(0, 0, 0, 110, 16, 56, C(0x3a4a58), fc(4, 8, 2), C(0x9aa3aa));
+      gb.box(-30, 16, 0, 30, 134, 30, gl, f, C(0x8f9aa0), 0.12); gb.box(-30, 150, 0, 16, 8, 16, C(0x8a8c8e), null, null, 0.12);
+      gb.box(32, 16, 0, 30, 122, 30, gl, f, C(0x8f9aa0), -0.12); gb.box(32, 138, 0, 16, 8, 16, C(0x8a8c8e), null, null, -0.12);
+      return { name: 'Jordan Gate Towers', ch: 150, mult: 3, fill: 0.3 };
+    },
+    leRoyal(gb) { // Le Royal: stepped drum inspired by the spiral minaret of Samarra
+      const st = C(0xe8dcc2);
+      gb.box(0, 0, 0, 80, 10, 70, st, fc(4, 5, 3), C(0xc9bfa8));
+      for (let i = 0; i < 7; i++) gb.cyl(0, 10 + i * 13, 0, 25 - i * 2.4, 13, 28, st, fc(2.6, 3.25, i % 2 ? 1 : 3), { capCol: C(0xc9bfa8) });
+      gb.cyl(0, 101, 0, 7, 9, 16, C(0x8fa3b3)); antenna(gb, 0, 110, 0, 12);
+      return { name: 'Le Royal Hotel', ch: 110, mult: 3, fill: 0.4 };
+    },
+    flagpole(gb) { // Raghadan flagpole flying the Jordanian flag
+      gb.cyl(0, 0, 0, 1.7, 127, 10, C(0xd8d8d8), null, { top: 0.5 }); gb.box(0, 0, 0, 24, 2, 24, C(0xcabd9f));
+      gb.box(17, 117, 0, 30, 5, 0.4, C(0x141414)); gb.box(17, 112, 0, 30, 5, 0.4, C(0xf2f2f2)); gb.box(17, 107, 0, 30, 5, 0.4, C(0x1a7a3a));
+      gb.prism([[2, -0.3], [14, -0.3], [14, 0.3], [2, 0.3]], 107, 122, C(0xc8102e), null, { top: 1 });
       return { name: 'Raghadan Flagpole', value: 120000, hp: 1.5, fill: 0.05 };
+    },
+    abdounBridge(gb) { // cable-stayed bridge on Y-shaped pylons over Wadi Abdoun
+      const cc = C(0xcfc9bb), cab = C(0xe8e8e4);
+      for (let i = 0; i < 6; i++) { const x = -125 + i * 50, z = Math.sin((i - 2.5) * 0.55) * 22, zn = Math.sin((i - 1.5) * 0.55) * 22; gb.box(x, 30, (z + zn) / 2, 54, 2.4, 13, cc, null, C(0x4a4c4e), Math.atan2(zn - z, 50) * -1); }
+      [-75, 0, 75].forEach((x) => {
+        const z = Math.sin((x + 125) / 50 * 0.55 - 1.1) * 22;
+        gb.box(x, 0, z, 6, 30, 5, cc); gb.add(ubox, x, 52, z - 7, 3, 46, 3.4, cc, 0.3, 0, 0); gb.add(ubox, x, 52, z + 7, 3, 46, 3.4, cc, -0.3, 0, 0);
+        for (let k = 1; k <= 3; k++) [-1, 1].forEach((s) => gb.add(ubox, x + s * k * 5.5, 32 + (4 - k) * 7.5, z, 0.35, Math.hypot(k * 11, (4 - k) * 15), 0.35, cab, 0, 0, s * Math.atan2(k * 11, (4 - k) * 15)));
+      });
+      return { name: 'Abdoun Bridge', value: 350000, hp: 3, fill: 0.12, ch: 74 };
+    },
+    refinery(gb) { // Zarqa oil refinery: columns, pipe racks, tank farm, flare
+      const st = C(0xb9bcc0), wh = C(0xe8e8e2), dk = C(0x5a5f66), rd = C(0xb0261e);
+      gb.box(0, 0, 0, 300, 0.5, 300, C(0x6a665e));
+      for (let i = 0; i < 7; i++) { const x = -110 + i * 22, h = 34 + (i * 37 % 40); gb.cyl(x, 0, -90, 3 + (i % 3), h, 12, st); gb.cyl(x, h * 0.5, -90, 5 + (i % 3), 0.8, 12, dk); gb.cyl(x, h * 0.85, -90, 5 + (i % 3), 0.8, 12, dk); gb.add(hemi, x, h, -90, 3 + (i % 3), 2.5, 3 + (i % 3), st); }
+      for (let i = 0; i < 4; i++) gb.box(-40, 6, -60 + i * 16, 210, 1.4, 2.4, dk); for (let i = 0; i < 8; i++) gb.box(-140 + i * 28, 0, -36, 1.2, 7, 52, dk);
+      for (let i = 0; i < 9; i++) { const x = -105 + (i % 3) * 52, z = 30 + Math.floor(i / 3) * 50; gb.cyl(x, 0, z, 19, 15, 24, wh, null, { capCol: C(0xcfcfc8) }); gb.cyl(x, 0, z, 19.6, 1.6, 24, dk); }
+      for (let i = 0; i < 4; i++) { const x = 70 + (i % 2) * 34, z = 40 + Math.floor(i / 2) * 34; gb.add(sphere, x, 13, z, 11, 11, 11, wh); gb.cyl(x, 0, z, 8, 5, 8, dk, null, { cap: false }); }
+      [0, 1].forEach((i) => { const x = 70 + i * 40; for (let k = 0; k < 10; k++) gb.cyl(x, k * 8, -100, 3.6 - k * 0.14, 8, 12, k % 2 ? wh : rd); });
+      gb.cyl(125, 0, 110, 1.2, 92, 8, dk); gb.add(cone, 125, 97, 110, 3, 10, 3, C(0xff8a1e));
+      gb.box(110, 0, -30, 44, 9, 26, C(0xdcd2bc), fc(4, 4.5, 3), C(0x8a8c8e)); gb.box(20, 0, -110, 30, 22, 20, st, fc(5, 5.5, 4));
+      return { name: 'Jordan Petroleum Refinery', fill: 0.2, mult: 3, ch: 60, hp: 6, stacks: [[70, 82, -100], [110, 82, -100], [125, 102, 110]] };
+    },
+    campus(gb) { // Yarmouk University: teaching blocks round a lawn, library, gate
+      const st = C(0xeae0ca), rf = C(0xc9bfa8);
+      gb.box(0, 0, 0, 290, 0.4, 290, C(0xbfae88)); gb.box(0, 0.4, 0, 120, 0.3, 120, C(0x6f8a4a));
+      [[0, -100, 220, 30], [0, 100, 220, 30], [-110, 0, 30, 150], [110, 0, 30, 150]].forEach((q) => gb.box(q[0], 0, q[1], q[2], 16, q[3], st, fc(3.2, 3.2, 3), rf));
+      gb.box(0, 0.4, 0, 46, 24, 46, st, fc(3, 3.4, 1), rf); gb.add(hemi, 0, 24, 0, 12, 8, 12, C(0x8fa3b3));
+      gb.box(-18, 0, 140, 6, 14, 6, st); gb.box(18, 0, 140, 6, 14, 6, st); gb.box(0, 14, 140, 48, 4, 7, st);
+      gb.cyl(70, 0, 55, 16, 10, 20, st, fc(3, 5, 3), { capCol: rf }); gb.box(-70, 0, 55, 3, 26, 3, st); gb.box(-70, 20, 55, 6, 6, 6, C(0xf2efe6));
+      return { name: 'Yarmouk University', fill: 0.25, mult: 2.5, ch: 24, hp: 5 };
+    },
+    hadrianArch(gb) { // triple triumphal arch at the entrance to Jerash
+      const col = C(0xe0cfa8);
+      [-15, -5.5, 5.5, 15].forEach((x) => gb.box(x, 0, 0, 4.6, 13, 9, col)); gb.box(0, 13, 0, 36, 4, 9, col); gb.box(0, 17, 0, 14, 5, 9, col); gb.gable(0, 22, 0, 15, 9, 3.5, col, true, col);
+      [-10.2, 10.2].forEach((x) => gb.box(x, 9, 0, 5, 4, 9, col));
+      return { name: "Hadrian's Arch", value: 180000, hp: 4, fill: 0.5 };
+    },
+    ovalForum(gb) { // Jerash: the oval plaza, the colonnaded street and the Temple of Artemis
+      const col = C(0xe0cfa8), pv = C(0xcbbd9c);
+      gb.prism(GB.ngon(0, 60, 44, 36, 32), 0, 0.5, pv);
+      for (let i = 0; i < 40; i++) { const a = i / 40 * 6.2832; if (Math.sin(a) < -0.97) continue; gb.cyl(Math.cos(a) * 44, 0, 60 + Math.sin(a) * 36, 0.8, 7.5, 8, col); }
+      for (let i = 0; i < 24; i++) { const a0 = i / 24 * 6.2832; gb.box(Math.cos(a0) * 44, 7.5, 60 + Math.sin(a0) * 36, 11, 0.9, 1.4, col, null, null, -a0 + Math.PI / 2); }
+      gb.box(0, 0, -60, 9, 0.4, 170, pv); columnRow(gb, -6, 20, -6, -140, 22, 7.5, col); columnRow(gb, 6, 20, 6, -140, 22, 7.5, col);
+      gb.box(-46, 0, -70, 46, 5, 30, col); columnRow(gb, -64, -82, -28, -82, 6, 14, col); columnRow(gb, -64, -58, -28, -58, 3, 14, col); gb.box(-46, 19, -82, 40, 1.6, 2.2, col);
+      return { name: 'Jerash Roman City', value: 400000, hp: 6, fill: 0.1, ch: 16 };
+    },
+    jerashTheatre(gb) { theatre(gb, C(0xe0cfa8), C(0xc8b68e), 14, 10); return { name: 'Jerash South Theatre', value: 200000, hp: 4, fill: 0.25, ch: 26 }; },
+    treasury(gb) { // Al-Khazneh, carved into a rose sandstone cliff
+      const ro = C(0xc27a5c), dk = C(0x9a5540), lt = C(0xdba080);
+      cliff(gb, 130, 70, 78, ro, dk); nabFacade(gb, 0, 35, 26, 40, lt, C(0x3a2018), true);
+      return { name: 'Petra Treasury (Al-Khazneh)', value: 900000, hp: 30, fill: 0.7, ch: 78 };
+    },
+    monastery(gb) { // Ad Deir, the largest façade in Petra
+      const ro = C(0xcc8a62), dk = C(0xa0603f), lt = C(0xe0aa84);
+      cliff(gb, 150, 80, 70, ro, dk); nabFacade(gb, 0, 40, 46, 47, lt, C(0x3a2018), true);
+      return { name: 'Petra Monastery (Ad Deir)', value: 900000, hp: 30, fill: 0.7, ch: 70 };
+    },
+    royalTombs(gb) {
+      const ro = C(0xbf7458), dk = C(0x96523e), lt = C(0xd6997a);
+      cliff(gb, 260, 70, 62, ro, dk);
+      [[-90, 30, 34], [-30, 24, 28], [28, 34, 44], [92, 24, 30]].forEach((q) => nabFacade(gb, q[0], 35, q[1], q[2], lt, C(0x3a2018), q[2] > 40));
+      return { name: 'Petra Royal Tombs', value: 600000, hp: 30, fill: 0.7, ch: 62 };
+    },
+    siq(gb) { // the narrow gorge that leads to the Treasury
+      const ro = C(0xb86e52), dk = C(0x8e4e3a);
+      for (let i = 0; i < 6; i++) {
+        const x = -250 + i * 100, off = Math.sin(i * 1.3) * 14;
+        [-1, 1].forEach((s) => { const poly = []; for (let k = 0; k < 8; k++) { const a = k / 8 * 6.2832; poly.push([x + Math.cos(a) * 62 * R.range(0.85, 1.1), off + s * 46 + Math.sin(a) * 38 * R.range(0.85, 1.1)]); } gb.prism(poly, 0, R.range(55, 85), (i + (s > 0 ? 1 : 0)) % 2 ? dk : ro, null, { top: 0.82 }); });
+      }
+      return { name: 'The Siq', value: 300000, hp: 40, fill: 0.6, ch: 70 };
+    },
+    petraTheatre(gb) { theatre(gb, C(0xc98562), C(0xa6644a), 16, 11); return { name: 'Petra Theatre', value: 300000, hp: 20, fill: 0.3, ch: 30 }; },
+    deadSeaResort(gb) {
+      const st = C(0xf0e8d6);
+      gb.box(0, 0, 0, 120, 22, 22, st, fc(3.4, 3.4, 3), C(0xc9bfa8)); gb.box(-50, 0, 30, 22, 14, 60, st, fc(3.4, 3.4, 3), C(0xc9bfa8)); gb.box(50, 0, 30, 22, 14, 60, st, fc(3.4, 3.4, 3), C(0xc9bfa8));
+      gb.box(0, 0, 40, 60, 0.6, 26, C(0x4fb4d8)); for (let i = 0; i < 6; i++) gb.add(sphere, -36 + i * 14, 7, 62, 2.6, 2.2, 2.6, C(0x3f6a34));
+      return { name: 'Dead Sea Resort', mult: 3, fill: 0.3 };
     }
   });
 
@@ -589,9 +829,19 @@
     Paris: [{ gx: -2, gz: 1, t: 'eiffel' }, { gx: -6, gz: -2, t: 'triomphe' }, { gx: 3, gz: 0, t: 'louvre' }, { gx: 0, gz: 0, t: 'arch', name: 'Grande Arche' }, { gx: 5, gz: -5, t: 'stadium', s: 2, name: 'Stade de France' }],
     Dubai: [{ gx: 0, gz: 0, t: 'burj' }, { gx: -7, gz: 4, t: 'frame' }, { gx: 3, gz: -2, t: 'twin', name: 'Emirates Towers' }, { gx: -3, gz: -5, t: 'needle', name: 'Dubai Creek Tower' }, { gx: 6, gz: 5, t: 'globe', name: 'Museum Sphere' }],
     Cairo: [{ gx: -1, gz: 0, t: 'cairoTower' }, { gx: 4, gz: 3, t: 'stadium', s: 2, name: 'Cairo Stadium' }, { gx: -5, gz: -4, t: 'obelisk', name: 'Obelisk' }],
-    Amman: [{ gx: -3, gz: -3, t: 'citadel', s: 2 }, { gx: 2, gz: 1, t: 'twin', name: 'Jordan Gate Towers' }, { gx: 4, gz: -4, t: 'flagpole' }]
+    Amman: [{ gx: -1, gz: -3, t: 'citadel', s: 2 }, { gx: 1, gz: 0, t: 'romanTheatre', s: 2 }, { gx: -1, gz: 1, t: 'husseinMosque' }, { gx: 4, gz: -2, t: 'flagpole' }, { gx: 4, gz: 3, t: 'abuDarwish' },
+      { gx: -4, gz: -2, t: 'kingAbdullah' }, { gx: -6, gz: -1, t: 'rotana' }, { gx: -6, gz: 0, t: 'abdali' }, { gx: -7, gz: -1, t: 'abdali', name: 'Abdali Gateway' }, { gx: -8, gz: 2, t: 'leRoyal' },
+      { gx: -10, gz: -3, t: 'jordanGate' }, { gx: -9, gz: 5, t: 'abdounBridge', s: 2 }, { gx: -6, gz: -8, t: 'stadium', s: 2, name: 'Amman International Stadium' }, { gx: -9, gz: -7, t: 'clock', name: 'University of Jordan Clock Tower' },
+      { gx: 2, gz: -6, t: 'mosque', name: 'King Hussein Mosque' }, { gx: 7, gz: 5, t: 'tvtower', name: 'Jordan TV Tower' }],
+    Zarqa: [{ gx: 5, gz: -4, t: 'refinery', s: 2 }, { gx: -5, gz: 4, t: 'power', s: 2, name: 'Hussein Thermal Power Station' }, { gx: 0, gz: 0, t: 'mosque', name: 'Zarqa Grand Mosque' }, { gx: -3, gz: -3, t: 'stadium', s: 2, name: 'Prince Mohammed Stadium' }],
+    Irbid: [{ gx: 0, gz: 0, t: 'clock', name: 'Irbid Clock Tower' }, { gx: 3, gz: 2, t: 'campus', s: 2 }, { gx: -4, gz: -3, t: 'stadium', s: 2, name: 'Al-Hassan Stadium' }, { gx: -2, gz: 3, t: 'mosque', name: 'Irbid Grand Mosque' }, { gx: 2, gz: -3, t: 'leRoyal', name: 'Irbid Municipality Tower' }],
+    Madaba: [{ gx: 0, gz: 0, t: 'cathedral', name: 'St George Church of the Map' }],
+    Petra: [{ gx: 0, gz: 0, t: 'husseinMosque', name: 'Wadi Musa Mosque' }]
   };
   const EXTRAS = {
+    Jerash: [{ t: 'hadrianArch', dx: -1250, dz: 420 }, { t: 'ovalForum', dx: -1250, dz: 60 }, { t: 'jerashTheatre', dx: -1400, dz: 150 }],
+    Petra: [{ t: 'siq', dx: -1500, dz: 0 }, { t: 'treasury', dx: -1960, dz: -60 }, { t: 'petraTheatre', dx: -2250, dz: 150 }, { t: 'royalTombs', dx: -2500, dz: -260 }, { t: 'monastery', dx: -3300, dz: -900 }],
+    Madaba: [{ t: 'deadSeaResort', dx: -2900, dz: -500 }, { t: 'deadSeaResort', dx: -2800, dz: -2600, name: 'Dead Sea Spa Hotel' }],
     Dubai: [{ t: 'sail', dx: 4350, dz: 700 }],
     Cairo: [{ t: 'gpyr', dx: -2900, dz: 3000, size: 230 }, { t: 'gpyr', dx: -3260, dz: 3360, size: 215 }, { t: 'gpyr', dx: -3520, dz: 3640, size: 105 }]
   };
@@ -610,7 +860,7 @@
       if (dn < c.core) towerBlock(slabs, x, z, G.lerp(c.hmax, c.hmax * 0.45, dn / c.core));
       else if (dn < c.mid) midBlock(slabs, x, z, G.lerp(c.hmid, 22, (dn - c.core) / (c.mid - c.core)), c.tallP);
       else if (R.chance(0.06)) parkBlock(slabs, x, z);
-      else if (c.town && R.chance(0.12)) indBlock(slabs, x, z);
+      else if (R.chance(c.ind != null ? c.ind : c.town ? 0.12 : 0)) indBlock(slabs, x, z);
       else resBlock(slabs, x, z);
     }
     (EXTRAS[c.name] || []).forEach((e) => landmarkAt(null, e, c.x + e.dx, c.z + e.dz, 0));
