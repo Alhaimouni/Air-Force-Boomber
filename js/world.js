@@ -29,7 +29,8 @@
     { name: 'Northpoint', x: -7000, z: -36000, city: 'Northpoint' },
     { name: 'Heathrow', x: -41500, z: -30000, city: 'London' },
     { name: 'Dubai Intl', x: -5600, z: 50000, city: 'Dubai' },
-    { name: 'Cairo Intl', x: -27800, z: 41500, city: 'Cairo' }
+    { name: 'Cairo Intl', x: -27800, z: 41500, city: 'Cairo' },
+    { name: 'Queen Alia Intl', x: -42500, z: 41800, city: 'Amman', noLink: true }
   ];
   // the first entry is the original metropolis (elliptical); the rest are circular
   const CITIES = G.CITIES = [
@@ -40,7 +41,13 @@
     { name: 'Paris', x: -56000, z: -8000, r: 3400, seed: 12, style: 'paris', core: 0.1, mid: 0.8, hmax: 170, hmid: 26, tallP: 0.02 },
     { name: 'Dubai', x: 600, z: 50000, r: 3800, seed: 13, style: 'gulf', core: 0.42, mid: 0.72, hmax: 400, hmid: 75, tallP: 0.45 },
     { name: 'Cairo', x: -21000, z: 42000, r: 3500, seed: 14, style: 'cairo', core: 0.1, mid: 0.72, hmax: 140, hmid: 34, tallP: 0.07 },
-    { name: 'Amman', x: -48000, z: 34000, r: 3000, seed: 15, style: 'levant', core: 0.1, mid: 0.85, hmax: 190, hmid: 24, tallP: 0.05 }
+    // Jordan: the capital, the northern governorates of Zarqa and Irbid, Jerash and Madaba, and Petra in the south
+    { name: 'Amman', x: -48000, z: 34000, r: 3600, seed: 15, style: 'levant', core: 0, mid: 0.52, hmax: 120, hmid: 22, tallP: 0.012 },
+    { name: 'Zarqa', x: -40500, z: 28200, r: 1900, seed: 21, style: 'levant', green: 0.6, core: 0, mid: 0.4, hmax: 60, hmid: 18, tallP: 0, ind: 0.2 },
+    { name: 'Irbid', x: -50500, z: 22000, r: 2200, seed: 22, style: 'levant', core: 0, mid: 0.45, hmax: 70, hmid: 20, tallP: 0.006 },
+    { name: 'Jerash', x: -52500, z: 28000, r: 800, seed: 24, style: 'levant', town: true, core: 0, mid: 0.2, hmax: 30, hmid: 14, tallP: 0, ind: 0 },
+    { name: 'Madaba', x: -51500, z: 41500, r: 850, seed: 25, style: 'levant', town: true, core: 0, mid: 0.2, hmax: 30, hmid: 14, tallP: 0, ind: 0 },
+    { name: 'Petra', x: -56000, z: 50500, r: 950, seed: 23, style: 'levant', town: true, green: 0.22, core: 0, mid: 0.25, hmax: 30, hmid: 14, tallP: 0, ind: 0 }
   ];
   function cityS(c, a) {
     const sd = c.seed || 5, n = fbm(Math.cos(a) * 1.5 + sd * 1.37 + 20, Math.sin(a) * 1.5 + sd * 0.71 + 20, 3);
@@ -65,7 +72,8 @@
   const LAKES = G.LAKES = [
     { x: -14000, z: -22000, r: 2300 }, { x: -22000, z: -12000, r: 1900 }, { x: -44500, z: -17000, r: 2700 }, { x: -52000, z: -36000, r: 2100 },
     { x: -20000, z: -47000, r: 2500 }, { x: -65000, z: -22000, r: 2000 }, { x: -39000, z: -3000, r: 1800 }, { x: -59000, z: 7000, r: 2200 },
-    { x: -12500, z: 19500, r: 1500 }, { x: -36000, z: 49000, r: 1600 }, { x: -70000, z: -46000, r: 2400 }, { x: -30000, z: -58000, r: 2000 }
+    { x: -12500, z: 19500, r: 1500 }, { x: -36000, z: 49000, r: 1600 }, { x: -70000, z: -46000, r: 2400 }, { x: -30000, z: -58000, r: 2000 },
+    { x: -58300, z: 37500, r: 2000 }, { x: -58600, z: 41000, r: 2000 } // the Dead Sea
   ];
   // land cover: where forests and farmland sit (shared by the ground shader and tree placement)
   function forestF(x, z) {
@@ -363,7 +371,7 @@
       this.destroyedCount = 0; this.targetCount = 0;
       this._terrain(); AIRPORTS.forEach((a, i) => this._airport(a, i)); this._carrier(); this._spaceCenter();
       G.buildCity(this); this._roads();
-      this._trees();
+      this._trees(); this._scenery();
       this._map();
     }
 
@@ -405,7 +413,7 @@
         const fx = Math.min(N - 1, (x + HALF) / CELL) | 0, fz = Math.min(N - 1, (z + HALF) / CELL) | 0, hh = hs[fz * (N + 1) + fx];
         let fo = 0, fa = 0;
         if (hh > 1 && hh < 1500) { fo = forestF(x, z); if (hh < 40) fa = farmF(x, z, fo); }
-        cim.data[k] = fo * 255; cim.data[k + 1] = fa * 255; cim.data[k + 2] = 0; cim.data[k + 3] = 255;
+        cim.data[k] = fo * 255; cim.data[k + 1] = fa * 255; cim.data[k + 2] = hh > -0.3 ? desertF(x, z) * 255 : 0; cim.data[k + 3] = 255;
       }
       cx2.putImageData(cim, 0, 0);
       const coverTex = new T.CanvasTexture(cc); coverTex.flipY = false; coverTex.minFilter = T.LinearFilter; coverTex.generateMipmaps = false;
@@ -420,16 +428,23 @@
       lx.strokeStyle = '#0000ff'; lx.lineWidth = 1.5; // rivers: lake to lake, and out to the sea
       [[0, 1], [1, 6], [2, 3], [2, 5], [4, 11], [6, 7], [3, 10]].forEach((p, i) => wiggle(LAKES[p[0]].x, LAKES[p[0]].z, LAKES[p[1]].x, LAKES[p[1]].z, 2600, i + 2));
       wiggle(LAKES[0].x, LAKES[0].z, 9000, -26000, 2200, 31); wiggle(LAKES[1].x, LAKES[1].z, 8500, 9000, 3000, 37); wiggle(LAKES[4].x, LAKES[4].z, 9500, -52000, 2600, 41);
+      wiggle(-57200, 15500, LAKES[12].x, LAKES[12].z - 1500, 1100, 53); // the River Jordan runs down to the Dead Sea
       lx.strokeStyle = '#ff0000'; lx.lineWidth = 1.1; // highways between cities
-      const cityXY = (n) => { const c = CITIES.find((q) => q.name === n); return [c.x, c.z]; };
+      const cityXY = (n) => { if (typeof n !== 'string') return n; const c = CITIES.find((q) => q.name === n); return [c.x, c.z]; };
       [['New York', 'Westfield'], ['Westfield', 'Paris'], ['New York', 'Northpoint'], ['Northpoint', 'London'], ['London', 'Paris'], ['Westfield', 'Cairo'], ['Cairo', 'Dubai'], ['Cairo', 'Amman'], ['Paris', 'Amman']]
-        .concat([['London', 'Amman'], ['Northpoint', 'Paris'], ['Dubai', 'New York']]).forEach((p, i) => {
+        .concat([['London', 'Amman'], ['Northpoint', 'Paris'], ['Dubai', 'New York']])
+        .concat([['Amman', 'Zarqa'], ['Amman', 'Jerash'], ['Jerash', 'Irbid'], ['Zarqa', 'Irbid'], ['Amman', 'Madaba'], ['Madaba', 'Petra'], ['Amman', [-42500, 40300]], ['Petra', 'Cairo'], ['Zarqa', 'Cairo'], ['Irbid', 'Westfield'], ['Paris', 'Westfield'], ['London', 'New York']]).forEach((p, i) => {
           const a = cityXY(p[0]), b = cityXY(p[1]), n = 12, dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz), nx = -dz / l, nz = dx / l, ctl = [];
-          for (let s = 0; s <= n; s++) { const t = s / n, o = Math.sin(t * Math.PI) * 1700 * (vnoise(i * 3 + 60 + t * 4.3, (i * 3 + 60) * 1.7) - 0.5) * 2; ctl.push(new T.Vector3(a[0] + dx * t + nx * o, 0, a[1] + dz * t + nz * o)); }
+          for (let s = 0; s <= n; s++) { const t = s / n, o = Math.sin(t * Math.PI) * Math.min(1700, l * 0.13) * (vnoise(i * 3 + 60 + t * 4.3, (i * 3 + 60) * 1.7) - 0.5) * 2; ctl.push(new T.Vector3(a[0] + dx * t + nx * o, 0, a[1] + dz * t + nz * o)); }
           const pts = new T.CatmullRomCurve3(ctl).getSpacedPoints(Math.ceil(l / 110));
           (this.roadPaths || (this.roadPaths = [])).push(pts);
           lx.beginPath(); pts.forEach((q, k) => (k ? lx.lineTo(tm(q.x), tm(q.z)) : lx.moveTo(tm(q.x), tm(q.z)))); lx.stroke();
         });
+      lx.globalCompositeOperation = 'lighter'; lx.filter = 'blur(7px)';
+      CITIES.forEach((c) => { const R0 = (c.r + 5200) / SIZE * LS, g = lx.createRadialGradient(tm(c.x), tm(c.z), (c.r * 0.6) / SIZE * LS, tm(c.x), tm(c.z), R0); const gk = c.green === undefined ? 1 : c.green; g.addColorStop(0, 'rgba(0,255,0,' + 0.95 * gk + ')'); g.addColorStop(0.55, 'rgba(0,255,0,' + 0.6 * gk + ')'); g.addColorStop(1, 'rgba(0,255,0,0)'); lx.fillStyle = g; lx.beginPath(); lx.arc(tm(c.x), tm(c.z), R0, 0, 6.2832); lx.fill(); });
+      lx.strokeStyle = 'rgba(0,255,0,0.4)'; lx.lineWidth = 22;
+      (this.roadPaths || []).forEach((pts) => { lx.beginPath(); pts.forEach((q, k) => { if (k % 6 === 0) { if (k) lx.lineTo(tm(q.x), tm(q.z)); else lx.moveTo(tm(q.x), tm(q.z)); } }); lx.stroke(); });
+      lx.filter = 'none'; lx.globalCompositeOperation = 'source-over';
       const lineTex = new T.CanvasTexture(lc); lineTex.flipY = false; lineTex.anisotropy = 8;
       const landMat = new T.MeshStandardMaterial({ vertexColors: true, map: tex, roughness: 0.96, metalness: 0 });
       landMat.onBeforeCompile = (sh) => {
@@ -461,6 +476,30 @@
               diffuseColor.rgb = mix(diffuseColor.rgb, canopy, fedge * 0.92);
               // fine ground variation
               diffuseColor.rgb *= 0.86 + 0.28 * (n1 * 0.6 + n2 * 0.4) + (n3 - 0.5) * 0.16 * nearK;
+              // desert floor: gravel plains, pale dry wadis with scrub along them, wind ripples, salt-crusted pans
+              {
+                float des = cov.b * (1.0 - cov.g);
+                float gravel = smoothstep(0.45, 0.7, tnoise(vTp.xz * 0.0016 + 40.0));
+                vec3 dc = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.72, 0.68, 0.66), gravel * 0.75);
+                float wv = abs(tnoise(vTp.xz * 0.00085 + 7.0) * 2.0 - 1.0) + (n2 - 0.5) * 0.02;
+                float wadi = 1.0 - smoothstep(0.012, 0.04, wv);
+                dc = mix(dc, vec3(0.66, 0.57, 0.42), wadi * 0.4);
+                float scrub = step(0.82, tnoise(vTp.xz * 0.05)) * smoothstep(0.1, 0.03, wv) * (1.0 - wadi);
+                dc = mix(dc, vec3(0.22, 0.27, 0.13), scrub * 0.8 * nearK + scrub * 0.3);
+                float rip = sin(dot(vTp.xz, vec2(0.34, 0.2)) + tnoise(vTp.xz * 0.004) * 9.0);
+                dc *= 1.0 + rip * 0.045 * nearK * (1.0 - gravel);
+                float pan = smoothstep(0.8, 0.88, tnoise(vTp.xz * 0.0007 + 91.0));
+                dc = mix(dc, vec3(0.74, 0.67, 0.54), pan * 0.25);
+                // settled land near towns and roads: small walled plots, some planted, some ploughed, dirt lanes between
+                vec2 pp = vTp.xz / 105.0 + (tnoise(vTp.xz * 0.0019) - 0.5) * 1.6; vec2 pid = floor(pp), pf = fract(pp);
+                float ph = thash(pid), ph2 = thash(pid + 31.7), planted = step(ph, lin.g * 0.62);
+                vec3 plot = ph2 < 0.3 ? mix(vec3(0.10, 0.19, 0.05), vec3(0.17, 0.25, 0.07), thash(pid + 5.1)) : (ph2 < 0.55 ? vec3(0.20, 0.21, 0.09) : (ph2 < 0.8 ? vec3(0.24, 0.16, 0.09) : vec3(0.36, 0.28, 0.16)));
+                float pang = thash(pid + 9.7) > 0.5 ? 1.0 : 0.0; float rows = 0.9 + 0.1 * sin((pang > 0.5 ? vTp.x : vTp.z) * 0.8);
+                float lane = smoothstep(0.0, 0.05, pf.x) * smoothstep(0.0, 0.05, pf.y) * smoothstep(0.0, 0.05, 1.0 - pf.x) * smoothstep(0.0, 0.05, 1.0 - pf.y);
+                plot = mix(vec3(0.40, 0.33, 0.22), plot * mix(1.0, rows, nearK), lane);
+                dc = mix(dc, plot, planted * 0.88);
+                diffuseColor.rgb = mix(diffuseColor.rgb, dc, des);
+              }
               // highways and rivers
               float road = smoothstep(0.32, 0.5, lin.r); diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.16, 0.16, 0.17), road * 0.92);
               lWater = smoothstep(0.3, 0.5, lin.b) * (1.0 - road); diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.07, 0.24, 0.36), lWater);
@@ -542,7 +581,7 @@
       [-1700, -600, 600, 1700].forEach((z) => slab(30, 130, z - 15, z + 15));
       slab(160, 560, -480, 480);
       if (main) { slab(-410, -390, -4200, 1200, this.roadMat); slab(-390, 130, 1185, 1200, this.roadMat); }
-      else { const t = CITIES.find((c) => c.name === ap.city), tx = t.x - ox; if (tx > 0) slab(560, tx - t.r, -410, -395, this.roadMat); else slab(tx + t.r, -42, -210, -195, this.roadMat); }
+      else if (!ap.noLink) { const t = CITIES.find((c) => c.name === ap.city), tx = t.x - ox; if (tx > 0) slab(560, tx - t.r, -410, -395, this.roadMat); else slab(tx + t.r, -42, -210, -195, this.roadMat); }
       // lights
       const lp = [], lc = [];
       const L = (x, z, r, g, b) => { lp.push(x + ox, 0.5, z + oz); lc.push(r, g, b); };
@@ -746,6 +785,7 @@
       if (this.seaU) this.seaU.time.value += dt;
       if (cam && this.treeChunks) { const td = (this.cullDist || 46000) * 0.55; for (let i = 0; i < this.treeChunks.length; i++) { const t = this.treeChunks[i]; t.im.visible = Math.abs(cam.x - t.x) < td + 9000 && Math.abs(cam.z - t.z) < td + 9000 && cam.y < 60000; } }
       if (this.spinners) for (let i = 0; i < this.spinners.length; i++) this.spinners[i].m.rotation.y += this.spinners[i].sp * dt;
+      if (this.rotors) for (let i = 0; i < this.rotors.length; i++) this.rotors[i].m.rotation.z += this.rotors[i].sp * dt;
       if (cam) for (let i = 0; i < this.cityGroups.length; i++) { const g = this.cityGroups[i]; g.group.visible = Math.hypot(cam.x - g.x, cam.z - g.z) < (this.cullDist || 46000) + g.r; }
       for (let i = this.collapsing.length - 1; i >= 0; i--) {
         const c = this.collapsing[i], b = c.b, m = b.mesh;
@@ -891,6 +931,168 @@
       fim.frustumCulled = false; this.scene.add(fim);
     }
 
+    // ---------- scenery that fills the open country: villages and pylons along the highways, sprawl round the cities,
+    // olive and palm groves, irrigated fields, greenhouses, desert rocks and mesas, Bedouin camps, wind and solar farms.
+    // All instanced and non-colliding, bucketed into chunks so distant ones are skipped.
+    _scenery() {
+      const r = G.rng(4242), d = new T.Object3D(), col = new T.Color(), v = new T.Vector3(), self = this;
+      const merge = (parts) => { // parts: [geometry, x, y, z, sx, sy, sz, colour, ry]
+        const pos = [], nor = [], cl = [], e = new T.Euler(), q = new T.Quaternion(), m = new T.Matrix4(), nm = new T.Matrix3(), c = new T.Color();
+        parts.forEach((p) => {
+          const gg = p[0].index ? p[0].toNonIndexed() : p[0], a = gg.attributes.position, n = gg.attributes.normal;
+          m.compose(new T.Vector3(p[1], p[2], p[3]), q.setFromEuler(e.set(0, p[8] || 0, 0)), new T.Vector3(p[4], p[5], p[6])); nm.getNormalMatrix(m); c.set(p[7] === undefined ? 0xffffff : p[7]);
+          for (let i = 0; i < a.count; i++) { v.fromBufferAttribute(a, i).applyMatrix4(m); pos.push(v.x, v.y, v.z); v.fromBufferAttribute(n, i).applyMatrix3(nm).normalize(); nor.push(v.x, v.y, v.z); cl.push(c.r, c.g, c.b); }
+        });
+        const bg = new T.BufferGeometry(); bg.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); bg.setAttribute('normal', new T.Float32BufferAttribute(nor, 3)); bg.setAttribute('color', new T.Float32BufferAttribute(cl, 3)); return bg;
+      };
+      const mat = new T.MeshLambertMaterial({ vertexColors: true }), flatMat = new T.MeshLambertMaterial({ vertexColors: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+      const lists = new Map();
+      // item: [x, y, z, sx, sy, sz, ry, colour]
+      const put = (key, x, y, z, sx, sy, sz, ry, hex) => { let a = lists.get(key); if (!a) lists.set(key, a = []); a.push([x, y, z, sx, sy, sz, ry, hex]); };
+      const nearAp = (x, z, pad) => AIRPORTS.some((a) => Math.abs(x - a.x) < 900 + (pad || 0) && Math.abs(z - a.z) < 3700 + (pad || 0)) || Math.hypot(x - PAD.x, z - PAD.z) < 1500;
+      const ok = (x, z, flat) => {
+        const h = self.rawHeight(x, z); if (h < -0.2 || h > 1400) return -1;
+        if (self.surfaceAt(x, z) !== 'grass' || nearAp(x, z)) return -1;
+        if (flat && (Math.abs(self.rawHeight(x + 30, z) - h) > flat || Math.abs(self.rawHeight(x, z + 30) - h) > flat)) return -1;
+        return h;
+      };
+      const B = new T.BoxGeometry(1, 1, 1), CY = new T.CylinderGeometry(1, 1, 1, 8), CN4 = new T.ConeGeometry(1, 1, 4, 1), CN = new T.ConeGeometry(1, 1, 8, 1), ICO = new T.IcosahedronGeometry(1, 0), SPH = new T.SphereGeometry(1, 8, 6);
+      const HC = new T.CylinderGeometry(1, 1, 1, 10, 1, false, Math.PI / 2, Math.PI); HC.rotateX(Math.PI / 2);
+      const TAP = new T.CylinderGeometry(0.68, 1, 1, 7);
+      const DISC = new T.CircleGeometry(1, 40); DISC.rotateX(-Math.PI / 2); const HALF_DISC = new T.CircleGeometry(1, 24, 0, Math.PI * 0.8); HALF_DISC.rotateX(-Math.PI / 2);
+      const PLN = new T.PlaneGeometry(1, 1); PLN.rotateX(-Math.PI / 2);
+      const geos = {
+        flatHouse: merge([[B, 0, 3, 0, 11, 6, 9, 0xffffff], [B, 0, 6.4, -4.3, 11, 0.8, 0.4, 0xffffff], [B, 0, 6.4, 4.3, 11, 0.8, 0.4, 0xffffff], [B, 2.5, 7.2, -1, 3, 2.4, 3.4, 0xf2ecdc], [CY, -3, 7, 2, 0.8, 1.6, 0.8, 0xe8e8e4], [B, 0, 1.6, 4.6, 2, 3.2, 0.2, 0x4a3a2c], [B, 7.5, 1.5, 1, 4, 3, 5, 0xeee6d2]]),
+        flatHouse2: merge([[B, 0, 4.8, 0, 12, 9.6, 12, 0xffffff], [B, 0, 10, 0, 12.4, 0.8, 12.4, 0xe2d8c2], [B, -3, 10.9, -3, 3.2, 2.5, 3.6, 0xf2ecdc], [CY, 3, 11.2, 3, 0.85, 1.6, 0.85, 0xe8e8e4], [CY, 1, 11.2, 3, 0.85, 1.6, 0.85, 0x2c2c2c], [B, 0, 5, 6.5, 6, 1, 1.2, 0xd8ceb8]]),
+        gableHouse: merge([[B, 0, 2.6, 0, 9, 5.2, 12, 0xffffff], [CN4, 0, 6.9, 0, 7.4, 3.4, 9.8, 0x8a4434, Math.PI / 4], [B, 3, 7, 3, 0.9, 3, 0.9, 0x6e3b30], [B, 7, 1.6, -2, 5, 3.2, 6, 0xd8d2c4]]),
+        minaret: merge([[B, 0, 3.5, 0, 9, 7, 9, 0xf2ecdc], [SPH, 0, 7, 0, 3.2, 3, 3.2, 0x4f8f6a], [B, 6.5, 3, -3, 3, 6, 3, 0xf2ecdc], [CY, 6.5, 14, -3, 1.1, 16, 1.1, 0xf2ecdc], [CY, 6.5, 19, -3, 1.9, 0.7, 1.9, 0xe6dcc6], [CN, 6.5, 24.5, -3, 1.3, 5, 1.3, 0x4f8f6a]]),
+        steeple: merge([[B, 0, 4, 0, 9, 8, 16, 0xd8d2c4], [CN4, 0, 10.5, 0, 7.5, 5, 12.5, 0x5c3a32, Math.PI / 4], [B, 0, 9, -10, 5, 18, 5, 0xd8d2c4], [CN4, 0, 23, -10, 4, 10, 4, 0x3c4a44, Math.PI / 4]]),
+        waterTower: merge([[CY, 0, 9, 0, 0.9, 18, 0.9, 0xb8b8b4], [CY, 0, 20, 0, 4.2, 5, 4.2, 0xe8e8e4], [CN, 0, 23.6, 0, 4.4, 2.2, 4.4, 0xcfcfc8]]),
+        pylon: merge([[CN4, 0, 17, 0, 3.4, 34, 3.4, 0x9aa0a6, Math.PI / 4], [B, 0, 27, 0, 16, 0.5, 0.5, 0x9aa0a6], [B, 0, 22, 0, 12, 0.5, 0.5, 0x9aa0a6], [B, 0, 32, 0, 9, 0.5, 0.5, 0x9aa0a6]]),
+        rock: merge([[ICO, 0, 0.35, 0, 1, 0.62, 0.9, 0xffffff]]),
+        mesa: merge([[TAP, 0, 0.5, 0, 1, 1, 1, 0xffffff], [TAP, 0.15, 0.3, -0.1, 1.45, 0.6, 1.35, 0xe6d2c2, 0.6], [TAP, -0.2, 1.1, 0.15, 0.5, 0.35, 0.45, 0xf0e0d0, 1.3], [ICO, -0.9, 0.2, 0.7, 0.55, 0.45, 0.6, 0xdcc6b4], [ICO, 1.0, 0.15, -0.6, 0.5, 0.35, 0.5, 0xe8d4c4]]),
+        olive: merge([[ICO, 0, 2.8, 0, 3, 2.3, 3, 0xffffff], [CY, 0, 0.8, 0, 0.3, 1.6, 0.3, 0x6a5238]]),
+        palm: merge([[CY, 0, 4.5, 0, 0.32, 9, 0.32, 0x8a7250], [ICO, 0, 9.4, 0, 3.4, 1.3, 3.4, 0x3f6a2c], [ICO, 0, 8.6, 0, 2.2, 1.6, 2.2, 0x4f7a34]]),
+        greenhouse: merge([[HC, 0, 0, 0, 4, 3, 44, 0xffffff]]),
+        tent: merge([[CN4, 0, 1.7, 0, 9, 3.4, 5, 0xffffff, Math.PI / 4], [B, 0, 0.5, 4.5, 8, 1, 0.2, 0xd8d0c0]]),
+        solar: merge([[B, 0, 1.6, 0, 110, 0.15, 3.6, 0x1c2d52], [B, -40, 0.7, 0, 0.3, 1.4, 0.3, 0x8a8c8e], [B, 0, 0.7, 0, 0.3, 1.4, 0.3, 0x8a8c8e], [B, 40, 0.7, 0, 0.3, 1.4, 0.3, 0x8a8c8e]]),
+        mast: merge([[CY, 0, 30, 0, 0.6, 20, 0.6, 0xc8102e], [CY, 0, 10, 0, 0.7, 20, 0.7, 0xf2f2f2], [CY, 0, 50, 0, 0.5, 20, 0.5, 0xf2f2f2], [B, 0, 1.5, 3, 4, 3, 4, 0xb8b8b4]]),
+        turbine: merge([[CY, 0, 40, 0, 1.6, 80, 1.6, 0xf0f0ee], [B, 0, 81, 0.5, 3, 3, 8, 0xf0f0ee]]),
+        disc: DISC, halfDisc: HALF_DISC, field: PLN
+      };
+      const flatKeys = { disc: 1, halfDisc: 1, field: 1 };
+      [DISC, HALF_DISC, PLN].forEach((g) => g.setAttribute('color', new T.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 3).fill(1), 3)));
+      const CREAM = [0xf2ecdc, 0xeae2cf, 0xf6f1e4, 0xe4dac4, 0xd9cdb2, 0xf8f4ea], TEMP = [0xe8e2d2, 0xd9c9a8, 0xc9d6dc, 0xe6d5c3, 0xdcc0a6, 0xf0ede6, 0xbfc9d6];
+      this.villages = [];
+      // a cluster of houses round a mosque or a church
+      const village = (cx, cz, n, rad) => {
+        const des = desertF(cx, cz) > 0.5; let made = 0;
+        for (let i = 0; i < n; i++) {
+          const a = r() * 6.283, rr = Math.sqrt(r()) * rad, x = cx + Math.cos(a) * rr, z = cz + Math.sin(a) * rr, h = ok(x, z, 2.5); if (h < 0) continue;
+          if (i === 0) put(des ? 'minaret' : 'steeple', x, h, z, 1, 1, 1, r() * 6.28, des ? r.pick(CREAM) : r.pick(TEMP));
+          else if (i === 1 && n > 9) put('waterTower', x, h, z, 1, 1, 1, 0, 0xffffff);
+          else { const k = des ? (r.chance(0.35) ? 'flatHouse2' : 'flatHouse') : 'gableHouse', s = r.range(0.85, 1.25); put(k, x, h, z, s, s, s, Math.round(r() * 4) * 1.5708 + r.range(-0.2, 0.2), des ? r.pick(CREAM) : r.pick(TEMP)); }
+          made++;
+        }
+        if (made > 3) this.villages.push([cx, cz]);
+      };
+      // along the highways: a village every few kilometres and a line of pylons
+      (this.roadPaths || []).forEach((pts) => {
+        let since = 900 + r() * 900, gap = 1500 + r() * 1500;
+        for (let i = 1; i < pts.length - 1; i++) {
+          const p = pts[i], q = pts[i + 1]; let dx = q.x - p.x, dz = q.z - p.z; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l; since += l;
+          if (i % 4 === 0) { const x = p.x - dz * 58, z = p.z + dx * 58, h = ok(x, z); if (h >= 0) put('pylon', x, h, z, 1, 1, 1, Math.atan2(dx, dz), 0xffffff); }
+          if (since > gap) {
+            since = 0; gap = 1500 + r() * 1800; const sd = r.chance(0.5) ? 1 : -1, off = r.range(170, 360);
+            village(p.x - dz * off * sd, p.z + dx * off * sd, r.int(7, 18), r.range(110, 210));
+          }
+        }
+      });
+      // loose houses thinning out beyond every city's edge
+      CITIES.forEach((c) => {
+        const n = c.town ? 220 : 800, des = desertF(c.x, c.z) > 0.5;
+        for (let i = 0; i < n; i++) {
+          const p = G.cityEdge(c, r() * 6.283, 150 + r() * r() * 2600), h = ok(p[0], p[1], 2.5); if (h < 0) continue;
+          const k = des ? (r.chance(0.4) ? 'flatHouse2' : 'flatHouse') : 'gableHouse', s = r.range(0.9, 1.3);
+          put(k, p[0], h, p[1], s, s, s, Math.round(r() * 4) * 1.5708 + r.range(-0.15, 0.15), des ? r.pick(CREAM) : r.pick(TEMP));
+        }
+      });
+      // hamlets away from the roads
+      for (let i = 0; i < 1500; i++) { const x = r.range(-80000, 6500), z = r.range(-60000, 64000); if (ok(x, z, 3) >= 0 && !CITIES.some((c) => Math.hypot(x - c.x, z - c.z) < c.r + 900)) village(x, z, r.int(5, 11), r.range(80, 150)); }
+      // desert rocks and boulders
+      for (let i = 0; i < 70000; i++) {
+        const x = r.range(-82000, 7000), z = r.range(12000, 66000); if (desertF(x, z) < 0.5 || r() > 0.45 + flatMask(x, z)) continue;
+        const h = ok(x, z); if (h < 0) continue; const s = r.range(2, 9) * (r.chance(0.08) ? 3 : 1);
+        put('rock', x, h - s * 0.15, z, s * r.range(0.8, 1.4), s * r.range(0.7, 1.5), s * r.range(0.8, 1.4), r() * 6.28, r.pick([0xb89a70, 0xa8845c, 0xc4a57c, 0x9a7654, 0xb08060]));
+      }
+      const jordan = (n) => CITIES.find((c) => c.name === n);
+      // sandstone mesas ring Petra, standing in for the mountains the valley is cut into
+      { const c = jordan('Petra');
+        for (let i = 0; i < 150; i++) {
+          const a = r() * 6.283, rr = r.range(1500, 7500), x = c.x + Math.cos(a) * rr, z = c.z + Math.sin(a) * rr;
+          if (x > c.x - 3900 && x < c.x - 950 && z > c.z - 1500 && z < c.z + 650) continue;
+          const h = ok(x, z); if (h < 0 || this.roadPaths.some((pp) => pp.some((p, k) => k % 3 === 0 && Math.abs(p.x - x) < 220 && Math.abs(p.z - z) < 220))) continue;
+          const s = r.range(45, 150); put('mesa', x, h - 2, z, s, r.range(30, 95), s * r.range(0.7, 1.3), r() * 6.28, r.pick([0xc27a5c, 0xb86e52, 0xcc8a62, 0xa8644a, 0xd09070]));
+        } }
+      // olive groves on the plains of the north and round Madaba, date palms by the Dead Sea and the desert towns
+      const grove = (cx, cz, key, nx, nz, sp, hexes) => {
+        if (ok(cx, cz, 2) < 0 || ok(cx + nx * sp, cz + nz * sp, 2) < 0) return;
+        const ry = r() * 0.6, ca = Math.cos(ry), sa = Math.sin(ry);
+        for (let a = 0; a < nx; a++) for (let b = 0; b < nz; b++) {
+          const lx = a * sp + r.range(-1.5, 1.5), lz = b * sp + r.range(-1.5, 1.5), x = cx + lx * ca - lz * sa, z = cz + lx * sa + lz * ca, h = self.rawHeight(x, z); if (h < -0.2 || self.surfaceAt(x, z) !== 'grass') continue;
+          const s = r.range(0.75, 1.2); put(key, x, h, z, s, s, s, r() * 6.28, r.pick(hexes));
+        }
+      };
+      ['Irbid', 'Jerash', 'Madaba', 'Amman', 'Zarqa'].forEach((n, k) => { const c = jordan(n); for (let i = 0; i < (k < 3 ? 80 : 45); i++) { const p = G.cityEdge(c, r() * 6.283, r.range(350, 3600)); grove(p[0], p[1], 'olive', r.int(6, 10), r.int(6, 10), 13, [0x5a6b3a, 0x66754a, 0x4f6034, 0x6f7d50]); } });
+      CITIES.forEach((c) => { if (desertF(c.x, c.z) < 0.5) return; for (let i = 0; i < 34; i++) { const p = G.cityEdge(c, r() * 6.283, r.range(250, 3000)); grove(p[0], p[1], 'palm', r.int(3, 6), r.int(3, 6), 11, [0xffffff, 0xe8f0e0, 0xd8e8d0]); } });
+      [[-55600, 36000], [-55700, 39500], [-55900, 42300], [-56000, 34500]].forEach((p) => { for (let i = 0; i < 6; i++) grove(p[0] + r.range(-500, 500), p[1] + r.range(-800, 800), 'palm', 5, 5, 11, [0xffffff, 0xe0ecd8]); });
+      // irrigated circles and field strips on the flat desert plains, plus plastic greenhouses
+      const GREENS = [0x4f7a34, 0x5f8a3a, 0x3f6a2c, 0x7a9a48, 0x9a8a50, 0x6a5a3a];
+      const flats = CITIES.filter((c) => desertF(c.x, c.z) > 0.5 && c.name !== 'Petra').map((c) => [c.x, c.z, c.r + 3100]).concat(AIRPORTS.filter((a) => desertF(a.x, a.z) > 0.5).map((a) => [a.x, a.z, 5600]));
+      for (let i = 0; i < 3000; i++) {
+        const fz0 = flats[i % flats.length], fa = r() * 6.283, fr = Math.sqrt(r()) * fz0[2], x = fz0[0] + Math.cos(fa) * fr, z = fz0[1] + Math.sin(fa) * fr;
+        if (desertF(x, z) < 0.6 || flatMask(x, z) > 0 || ok(x, z) < 0) continue;
+        const t = r();
+        if (t < 0.22) { const s = r.range(170, 360); if (flatMask(x + s, z) > 0 || flatMask(x - s, z) > 0 || flatMask(x, z + s) > 0 || flatMask(x, z - s) > 0 || ok(x + s, z) < 0 || ok(x - s, z) < 0 || ok(x, z + s) < 0 || ok(x, z - s) < 0) continue;
+          put('disc', x, 0.5, z, s, 1, s, 0, r.pick(GREENS)); if (r.chance(0.6)) put('halfDisc', x, 0.62, z, s * 0.985, 1, s * 0.985, r() * 6.28, r.pick(GREENS)); put('flatHouse', x + s + 14, 0, z, 0.8, 0.8, 0.8, 0, 0xe8e8e4); }
+        else if (t < 0.62) { const w = r.range(60, 150), l = r.range(120, 320), ry = Math.round(r() * 2) * 1.5708; for (let k = 0; k < r.int(1, 4); k++) { const fx = x + (ry ? 0 : k * (w + 8)), fz = z + (ry ? k * (w + 8) : 0); if (ok(fx, fz) >= 0 && flatMask(fx, fz) === 0) put('field', fx, 0.45, fz, w, 1, l, ry, r.pick(GREENS)); } }
+        else if (t < 0.75) { const ry = r() * 3.14, n = r.int(4, 10); for (let k = 0; k < n; k++) { const gx = x + Math.cos(ry) * k * 9.5, gz = z - Math.sin(ry) * k * 9.5; if (ok(gx, gz) >= 0) put('greenhouse', gx, 0, gz, 1, 1, 1, ry, r.pick([0xf2f4f2, 0xe6ece8, 0xdfe6e0])); } }
+        else if (t < 0.8) { for (let k = 0; k < 3; k++) { const tx = x + r.range(-25, 25), tz = z + r.range(-25, 25); put('tent', tx, 0, tz, 1, 1, 1, r() * 6.28, r.pick([0x2c2620, 0x3a3028, 0x4a3c30, 0xd8d0c0])); } }
+      }
+      // solar farms outside the desert cities
+      [['Zarqa', 2800, 0.3], ['Amman', 4600, 2.3], ['Petra', 2300, 1.2], ['Dubai', 5200, 3.6], ['Cairo', 4700, 5.2], ['Irbid', 3000, 0.9]].forEach((q) => {
+        const c = jordan(q[0]), p = G.cityEdge(c, q[2], q[1]);
+        for (let k = 0; k < 16; k++) for (let j = 0; j < 2; j++) { const x = p[0] + j * 124, z = p[1] + k * 7.5; if (ok(x, z, 1.5) >= 0 && ok(x + 55, z, 1.5) >= 0 && ok(x - 55, z, 1.5) >= 0) put('solar', x, self.rawHeight(x, z), z, 1, 1, 1, 0, 0xffffff); }
+      });
+      // radio masts on high ground
+      for (let i = 0; i < 4000 && (lists.get('mast') || []).length < 70; i++) { const x = r.range(-80000, 6500), z = r.range(-60000, 64000), h = ok(x, z); if (h > 260 && h < 1300 && self.rawHeight(x + 400, z) < h && self.rawHeight(x - 400, z) < h && self.rawHeight(x, z + 400) < h && self.rawHeight(x, z - 400) < h) put('mast', x, h, z, 1, 1, 1, 0, 0xffffff); }
+      // a wind farm on the ridge between Madaba and Petra; the rotors turn
+      const blade = new T.BoxGeometry(1, 1, 1), rotorG = merge([0, 1, 2].map((k) => [blade, 0, 0, 0, 1, 1, 1, 0xf4f4f2]));
+      { const pos = [], nor = [], pa = blade.toNonIndexed().attributes.position, na = blade.toNonIndexed().attributes.normal, m4 = new T.Matrix4(), q = new T.Quaternion();
+        for (let k = 0; k < 3; k++) { m4.compose(new T.Vector3(0, 0, 0), q.setFromEuler(new T.Euler(0, 0, k * 2.0944)), new T.Vector3(1, 1, 1)); const m2 = new T.Matrix4().makeTranslation(0, 19, 0).scale(new T.Vector3(2.2, 38, 0.5)); m4.multiply(m2); const n3 = new T.Matrix3().getNormalMatrix(m4);
+          for (let i = 0; i < pa.count; i++) { v.fromBufferAttribute(pa, i).applyMatrix4(m4); pos.push(v.x, v.y, v.z); v.fromBufferAttribute(na, i).applyMatrix3(n3).normalize(); nor.push(v.x, v.y, v.z); } }
+        rotorG.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); rotorG.setAttribute('normal', new T.Float32BufferAttribute(nor, 3)); rotorG.deleteAttribute('color'); }
+      const rotMat = new T.MeshLambertMaterial({ color: 0xf4f4f2 }); this.rotors = [];
+      for (let k = 0; k < 18; k++) {
+        const x = -51800 + (k % 9) * 420 + (k > 8 ? 210 : 0), z = 45600 + (k > 8 ? 900 : 0) + Math.sin(k * 1.7) * 160, h = ok(x, z); if (h < 0) continue;
+        put('turbine', x, h, z, 1, 1, 1, 0, 0xffffff);
+        const rm = new T.Mesh(rotorG, rotMat); rm.position.set(x, h + 81, z + 5); rm.rotation.z = k * 0.7; this.scene.add(rm); this.rotors.push({ m: rm, sp: 1.1 + (k % 3) * 0.15, x, z });
+      }
+      // build the instanced meshes, split into 16 km chunks
+      const CH = 8000;
+      lists.forEach((list, key) => {
+        const buckets = new Map();
+        list.forEach((it) => { const k = Math.floor(it[0] / CH) + ',' + Math.floor(it[2] / CH); let a = buckets.get(k); if (!a) buckets.set(k, a = []); a.push(it); });
+        buckets.forEach((items) => {
+          const im = new T.InstancedMesh(geos[key], flatKeys[key] ? flatMat : mat, items.length); let sx = 0, sz = 0;
+          items.forEach((it, i) => { d.position.set(it[0], it[1], it[2]); d.scale.set(it[3], it[4], it[5]); d.rotation.set(0, it[6], 0); d.updateMatrix(); im.setMatrixAt(i, d.matrix); im.setColorAt(i, col.set(it[7])); sx += it[0]; sz += it[2]; });
+          im.computeBoundingSphere(); im.matrixAutoUpdate = false; if (!flatKeys[key]) im.castShadow = false; im.receiveShadow = !!flatKeys[key];
+          this.scene.add(im); this.treeChunks.push({ im, x: sx / items.length, z: sz / items.length });
+        });
+      });
+      this.sceneryCount = 0; lists.forEach((l) => { this.sceneryCount += l.length; });
+    }
+
     // ---------- minimap
     _map() {
       const S = 2048, c = this.mapCanvas = document.createElement('canvas'); c.width = c.height = S;
@@ -915,6 +1117,7 @@
         x.fillStyle = '#5a5f66'; x.fillRect(mx(a.x + 130), mz(a.z - 1750), 2, 3500 * this.mapScale); x.fillRect(mx(a.x + 160), mz(a.z - 480), 400 * this.mapScale, 960 * this.mapScale);
         x.fillStyle = '#c4cad0'; x.fillRect(mx(a.x - 30) - 1, mz(a.z - 1800), Math.max(3, 60 * this.mapScale), 3600 * this.mapScale);
       });
+      x.fillStyle = '#8a8f96'; (this.villages || []).forEach((p) => x.fillRect(mx(p[0]) - 1, mz(p[1]) - 1, 2, 2));
       this.buildings.forEach((b) => {
         const t = clamp(b.h / 200, 0, 1);
         x.fillStyle = b.kind === 'sam' ? '#ff4040' : `rgb(${110 + t * 120},${120 + t * 110},${130 + t * 100})`;
