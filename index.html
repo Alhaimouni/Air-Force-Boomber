@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Air Boomber — Flight Simulator</title>
-<link rel="stylesheet" href="css/style.css?v=20">
+<link rel="stylesheet" href="css/style.css?v=21">
 </head>
 <body>
 <canvas id="gl"></canvas>
@@ -20,19 +20,59 @@
 <div id="flightUI" class="hidden"><div id="msgs"></div></div>
 
 <div id="hangar" class="hidden">
-  <header><h1>AIR BOOMBER</h1><span>Hangar — choose your aircraft</span></header>
+  <header><h1>AIR BOOMBER</h1><span>Pick a mode, pick an aircraft, press Start</span></header>
+  <section class="panel" id="modePanel">
+    <div class="step"><b>1</b> Game mode</div>
+    <div class="modes" id="modes" role="radiogroup" aria-label="Game mode">
+      <button class="mode" data-mode="free" role="radio" title="Fly anywhere with no objectives"><i>1</i><b>Free flight</b></button>
+      <button class="mode" data-mode="mission" role="radio" title="Destroy city defences against the clock, land to rearm"><i>2</i><b>Strike mission</b></button>
+      <button class="mode" data-mode="rush" role="radio" title="Do as much damage as you can before time runs out"><i>3</i><b>Demolition rush</b></button>
+      <button class="mode" data-mode="landing" role="radio" title="Fly the approach and get your touchdown graded"><i>4</i><b>Landing challenge</b></button>
+    </div>
+    <div class="step sub">Options</div>
+    <div class="opts" data-for="free">
+      <label class="sand sel">Start <select id="freeStart"><option value="rw">On the runway</option><option value="air">In the air near a city</option></select></label>
+      <label class="sand sel" id="rowAp">Airport <select id="startAp"></select></label>
+      <label class="sand sel" id="rowCity">City <select id="startCity"></select></label>
+      <label class="sand"><input type="checkbox" id="defence"> City air defence fires at you</label>
+    </div>
+    <div class="opts" data-for="mission">
+      <label class="sand sel">Cities to attack <select id="mCities"></select></label>
+      <label class="sand sel">Level <select id="mLevel"></select></label>
+      <label class="sand sel">First target <select id="mTarget"></select></label>
+      <label class="sand sel">Help <select id="mAssist"><option value="0">None</option><option value="1">Target markers</option><option value="2">Markers + 2 wingmen</option></select></label>
+      <label class="sand"><input type="checkbox" id="mFlares"> Refill flares after each site destroyed</label>
+    </div>
+    <div class="opts" data-for="rush">
+      <label class="sand sel">Time limit <select id="rTime"><option value="120">2 minutes</option><option value="180">3 minutes</option><option value="300">5 minutes</option></select></label>
+      <label class="sand sel">City <select id="rCity"></select></label>
+      <label class="sand"><input type="checkbox" id="rDef"> City air defence fires at you</label>
+    </div>
+    <div class="opts" data-for="landing">
+      <label class="sand sel">Land at <select id="lWhere"></select></label>
+      <label class="sand sel">Approach <select id="lDist"><option value="9000">Long final — 9 km</option><option value="5000">Short final — 5 km</option></select></label>
+    </div>
+    <div class="brief" id="mBrief"></div>
+    <div class="best" id="modeBest"></div>
+    <div class="go">
+      <div class="startNote" id="startNote"></div>
+      <button id="btnStart" class="start">Start</button>
+    </div>
+  </section>
   <button id="btnPrev" class="nav" aria-label="Previous aircraft">&#9664;</button>
   <button id="btnNext" class="nav" aria-label="Next aircraft">&#9654;</button>
   <section class="card">
-    <div class="count" id="hCount"></div>
+    <div class="step"><b>2</b> Aircraft <span class="count" id="hCount"></span></div>
     <h2 id="hName"></h2>
     <div class="role" id="hRole"></div>
     <div class="stats" id="hStats"></div>
+    <div class="price" id="hPrice"></div>
+    <button id="btnBuy" class="buy wideBuy"></button>
     <div id="hBars"></div>
     <h3>Loadout</h3>
     <ul id="hWeapons"></ul>
-    <div id="paintBox">
-      <h3>Paint &amp; glass</h3>
+    <details id="paintBox">
+      <summary>Paint &amp; glass</summary>
       <label class="sand sel">Paint scheme <select id="pScheme"></select></label>
       <div id="pCustom" class="hidden">
         <label class="sand sel">Pattern <select id="pPat"></select></label>
@@ -42,29 +82,14 @@
       <label class="sand sel" id="pGlassRow">Canopy tint <select id="pGlass"></select></label>
       <div class="swatches" id="pSw"></div>
       <button id="btnTest" class="wide">Test flaps, air brakes and controls</button>
+    </details>
+    <div class="extras">
+      <label class="sand"><input type="checkbox" id="sandbox"> Sandbox: unlock every aircraft</label>
+      <button id="btnSettings" class="link">Graphics settings</button>
+      <button id="btnResetCity" class="link">Rebuild the cities</button>
     </div>
-    <div class="price" id="hPrice"></div>
-    <div class="actions">
-      <button id="btnBuy" class="buy"></button>
-      <button id="btnFly" class="primary">Take off from runway</button>
-      <button id="btnAir">Air start near chosen city</button>
-    </div>
-    <h3>Strike mission</h3>
-    <label class="sand sel">Level <select id="mLevel"></select></label>
-    <label class="sand sel">Target <select id="mTarget"></select></label>
-    <label class="sand sel">Assistance <select id="mAssist"><option value="0">None</option><option value="1">Target markers</option><option value="2">Markers + 2 wingmen</option></select></label>
-    <label class="sand"><input type="checkbox" id="mFlares"> Refill flares after each site you destroy</label>
-    <div class="brief" id="mBrief"></div>
-    <button id="btnMission" class="wide go">Start mission</button>
-    <h3>Free flight</h3>
-    <label class="sand sel">Departure airport <select id="startAp"></select></label>
-    <label class="sand sel">Air start near <select id="startCity"></select></label>
-    <label class="sand"><input type="checkbox" id="defence"> City air defence (missile sites fire at you)</label>
-    <label class="sand"><input type="checkbox" id="sandbox"> Sandbox: unlock every aircraft</label>
-    <button id="btnSettings" class="wide">Graphics settings</button>
-    <button id="btnResetCity" class="link">Rebuild the city</button>
   </section>
-  <footer>◀ ▶ switch aircraft · drag to look around · wheel to zoom · Enter to fly</footer>
+  <footer>1–4 mode · ◀ ▶ aircraft · drag to look around · wheel to zoom · Enter to start</footer>
 </div>
 
 <div id="help" class="hidden">
@@ -85,7 +110,7 @@
   <p>Take-off: flaps down, full throttle, pull back gently at rotation speed, then gear up (G) and flaps up (F). Landing: slow below the gear and flap limits, gear down, flaps full, hold B after touchdown.</p>
 </div>
 
-<div id="pause" class="overlay hidden"><div class="box"><h2>Paused</h2><button id="btnResume" class="primary">Resume</button><button id="btnSettings2">Graphics settings</button><button id="btnHangar">Return to hangar</button></div></div>
+<div id="pause" class="overlay hidden"><div class="box"><h2>Paused</h2><button id="btnResume" class="primary">Resume</button><button id="btnRestart">Restart</button><button id="btnSettings2">Graphics settings</button><button id="btnHangar">Return to hangar</button></div></div>
 <div id="summary" class="overlay hidden"><div class="box"><h2 id="sumTitle"></h2><p id="sumText"></p><button id="btnAgain" class="primary">Fly again</button><button id="btnSumHangar">Hangar</button></div></div>
 
 <div id="settings" class="overlay hidden"><div class="box wide">
@@ -106,15 +131,15 @@
   <button id="btnSettingsClose">Close</button>
 </div></div>
 
-<script src="lib/three.min.js?v=20"></script>
-<script src="js/data.js?v=20"></script>
-<script src="js/physics.js?v=20"></script>
-<script src="js/models.js?v=20"></script>
-<script src="js/world.js?v=20"></script>
-<script src="js/city.js?v=20"></script>
-<script src="js/effects.js?v=20"></script>
-<script src="js/audio.js?v=20"></script>
-<script src="js/hud.js?v=20"></script>
-<script src="js/game.js?v=20"></script>
+<script src="lib/three.min.js?v=21"></script>
+<script src="js/data.js?v=21"></script>
+<script src="js/physics.js?v=21"></script>
+<script src="js/models.js?v=21"></script>
+<script src="js/world.js?v=21"></script>
+<script src="js/city.js?v=21"></script>
+<script src="js/effects.js?v=21"></script>
+<script src="js/audio.js?v=21"></script>
+<script src="js/hud.js?v=21"></script>
+<script src="js/game.js?v=21"></script>
 </body>
 </html>
