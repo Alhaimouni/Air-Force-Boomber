@@ -532,37 +532,28 @@
       addGear(m, s, -9.5, 3.2, 2.4, 0.42, -0.8, false, { main: 'fwd', nose: 'aft' });
       m.userData.core = core; return m;
     },
-    car() { // origin at wheel-centre height, nose toward -Z like the aircraft
-      const m = new T.Group(), core = new T.Group(), np = (mat) => { mat.userData.noPaint = true; return mat; }; m.add(core);
-      const paint = np(std(0xc8102e, 0.55, 0.28)), dk = np(std(0x15171a, 0.4, 0.6)), glass = np(new T.MeshStandardMaterial({ color: 0x0c1116, metalness: 0.9, roughness: 0.08 })), rim = np(std(0xc9cdd2, 0.9, 0.3));
-      const slab = (pts, w, mat) => { const sh = new T.Shape(); pts.forEach((p, i) => (i ? sh.lineTo(p[0], p[1]) : sh.moveTo(p[0], p[1]))); const g = new T.ExtrudeGeometry(sh, { depth: w, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.05, bevelSegments: 2 }); g.rotateY(-Math.PI / 2); g.translate(w / 2, 0, 0); return new T.Mesh(g, mat); };
-      core.add(slab([[-2.2, -0.14], [-2.22, 0.08], [-1.65, 0.27], [-0.75, 0.36], [1.5, 0.43], [2.18, 0.46], [2.22, -0.14]], 1.8, paint));
-      core.add(slab([[-0.78, 0.36], [-0.15, 0.8], [0.8, 0.82], [1.55, 0.44]], 1.36, glass));
-      core.add(at(box(1.2, 0.05, 0.9, paint), 0, 0.86, 0.33));
-      core.add(at(box(1.7, 0.05, 0.32, paint), 0, 0.66, 2.02)); both(core, at(box(0.06, 0.2, 0.2, dk), 0.7, 0.55, 2.02)); // rear wing
-      core.add(at(box(1.5, 0.16, 0.06, dk), 0, 0.0, -2.26)); core.add(at(box(1.4, 0.14, 0.06, dk), 0, 0.02, 2.25));
-      const lampW = new T.MeshBasicMaterial({ color: 0xfff6d8 }), lampR = new T.MeshBasicMaterial({ color: 0x7a0c0c });
-      both(core, at(box(0.36, 0.09, 0.06, lampW), 0.66, 0.17, -2.21)); both(core, at(box(0.42, 0.09, 0.06, lampR), 0.62, 0.36, 2.26));
-      both(core, at(cyl(0.05, 0.05, 0.3, rim), 0.42, -0.08, 2.3));
-      const tyreG = new T.CylinderGeometry(0.34, 0.34, 0.26, 20); tyreG.rotateZ(Math.PI / 2);
-      const rimG = new T.CylinderGeometry(0.21, 0.21, 0.27, 12); rimG.rotateZ(Math.PI / 2);
-      const wheels = [];
-      [[0.82, -1.35, 1], [-0.82, -1.35, 1], [0.82, 1.35, 0], [-0.82, 1.35, 0]].forEach((p) => {
-        const piv = new T.Group(), w = new T.Group(); piv.position.set(p[0], 0, p[1]); piv.add(w); m.add(piv);
-        w.add(new T.Mesh(tyreG, M.tire), new T.Mesh(rimG, rim)); [0, 1, 2].forEach((k) => { const sp = box(0.28, 0.4, 0.05, dk); sp.rotation.x = k * Math.PI / 3; w.add(sp); });
-        wheels.push({ piv, w, front: !!p[2] });
+an225(s) { // high wing, six podded turbofans, a long tailplane carrying a fin on each tip, nose that hinges up for cargo
+      const m = new T.Group(), core = new T.Group(); m.add(core);
+      const b = std(0xe9ecee, 0.3, 0.45), b2 = std(0xc4c9ce, 0.4, 0.45), blue = std(0x1c4fa0, 0.3, 0.5), yel = std(0xf2c81e, 0.3, 0.5), wy = 3.0;
+      core.add(fus([[-42, 0], [-41.2, 1.1], [-39, 2.3], [-35, 3.1], [-28, 3.3], [16, 3.3], [28, 2.5], [37, 1.6], [42, 0.9]], 1, 1.06, b, 24));
+      both(m, at(box(0.06, 0.5, 62, blue), 3.27, 0.5, -4)); both(m, at(box(0.06, 0.28, 62, yel), 3.29, 0.05, -4)); // cheat line down each side
+      ctl(m, 1, [[3.0, -10.5], [44.2, 3.5], [44.2, 7.6], [3.0, 4.0]], 0.95, b, [TE(2.6, [[0.03, 0.34, 'flap', 0.6], [0.37, 0.66, 'flap', 0.6], [0.7, 0.97, 'ail', 0.35]], 0.35), LE(1.0, [[0.06, 0.96, 'slat', 0.3]], 0.4)], PL(0, wy, 0, -0.03), true, { plates: [[24, 2.6, 9, 1.4, 0.33, 0, 'spoilr']] });
+      core.add(at(fus([[-9, 0.6], [-6, 1.5], [6, 1.5], [10, 0.5]], 2.3, 0.7, b, 14), 0, wy + 0.35, -3)); // wing-root fairing
+      ctl(m, 1, [[1.0, 33.5], [16.3, 37.8], [16.3, 41.0], [1.0, 41.0]], 0.5, b, [TE(1.4, [[0.05, 0.95, 'elevTE', 0.35]], 0.3)], PL(0, 2.0, 0), true);
+      ctl(m, 0, [[34.6, -3.6], [36.4, 7.2], [39.8, 7.2], [41.6, -3.6]], 0.4, b, [{ e: 2, c: 1.5, segs: [[0.08, 0.92, 'rud', 0.4]] }], PL(16.3, 2.0, 0), true);
+      both(m, at(fus([[-5, 0.4], [-3, 1.3], [16, 1.3], [20, 0.5]], 1.1, 1, b2, 12), 4.3, -2.6, -2)); // main-gear fairings
+      const eng = [];
+      [13.5, 22.5, 31.5].forEach((x) => {
+        const z = -10.5 + (x - 3) * 0.34 - 2.2, y = wy - x * 0.03 - 2.5;
+        both(m, at(fus([[-3.3, 1.15], [-2.9, 1.4], [0.6, 1.4], [1.2, 1.0], [3.4, 0.75]], 1, 1, b2, 16), x, y, z));
+        both(m, at(cyl(1.2, 1.2, 0.12, M.dark), x, y, z - 3.3)); both(m, at(box(0.35, 1.7, 4.4, b), x, y + 1.5, z + 1.2));
+        eng.push([x, y, z + 3.6], [-x, y, z + 3.6]);
       });
-      // what the driver sees: bonnet, dashboard, wheel, screen pillars and the roof edge
-      const cp = new T.Group(), wheel = new T.Mesh(new T.TorusGeometry(0.15, 0.016, 8, 24), dk);
-      cp.add(at(box(1.74, 0.04, 1.5), 0, 0.33, -1.45)); cp.children[0].material = paint;
-      cp.add(at(box(1.5, 0.6, 0.42, dk), 0, 0.13, -0.52)); cp.add(at(box(0.3, 0.07, 0.12, dk), -0.37, 0.46, -0.42));
-      wheel.position.set(-0.37, 0.38, -0.2); wheel.rotation.x = -0.35; wheel.add(box(0.28, 0.025, 0.015, dk)); cp.add(wheel);
-      [1, -1].forEach((sd) => { const pl = box(0.045, 0.62, 0.045, dk); pl.position.set(sd * 0.69, 0.62, -0.5); pl.rotation.x = 0.95; cp.add(pl); });
-      cp.add(at(box(1.4, 0.03, 0.9, dk), 0, 0.86, 0.2)); cp.add(at(box(0.18, 0.05, 0.02, dk), 0, 0.81, -0.22));
-      cp.visible = false; m.add(cp);
-      m.traverse((o) => { if (o.isMesh) o.castShadow = true; });
-      Object.assign(m.userData, { core, cockpit: cp, wheels, steerWheel: wheel, brakeLamp: lampR, engines: [[0.42, -0.08, 2.4], [-0.42, -0.08, 2.4]], tips: [], flames: [] });
-      return m;
+      const ws = at(blob(2.3, 0.75, 1.5, M.window), 0, 2.75, -37.4); ws.userData.fpHide = true; core.add(ws);
+      m.userData.engines = eng; m.userData.tips = [[44, wy - 1.3, 6.5], [-44, wy - 1.3, 6.5]];
+      m.userData.flames = [];
+      addGear(m, s, -30, 3, 3.4, 0.62, -3.3, true, { main: 'fwd', bogie: true });
+      m.userData.core = core; return m;
     },
     rocket(s) { // lies along -Z like the aircraft; the flight model stands it upright
       const m = new T.Group(), core = new T.Group(); m.add(core);
@@ -660,7 +651,7 @@
     const e = s.cam.cockpit; c.position.set(e[0], e[1], e[2]);
     const mk = (col, r, mt) => new T.MeshStandardMaterial({ color: col, roughness: r, metalness: mt || 0.1 });
     const bodyCol = (ud.baseColor || new T.Color(0x6a7078)).clone();
-    const heavy = ['a320', 'b2', 'b1', 'b52', 'tu160'].indexOf(s.id) >= 0, civ = !!s.civil;
+    const heavy = ['a320', 'b2', 'b1', 'b52', 'tu160', 'an225'].indexOf(s.id) >= 0, civ = !!s.civil;
     const frame = heavy ? mk(0x2b3036, 0.6, 0.4) : new T.MeshStandardMaterial({ color: bodyCol.clone().multiplyScalar(0.5), roughness: 0.5, metalness: 0.5 });
     const dark = mk(0x14161a, 0.9), mid = mk(0x30363c, 0.8), grey = mk(0x4a5158, 0.7), trim = mk(0x7a828b, 0.4, 0.7), suit = mk(civ ? 0xe9ecee : 0x4b5539, 0.95), legM = civ ? mk(0x1d2330, 0.9) : suit, vest = mk(civ ? 0xe9ecee : 0x39432e, 0.95),
       glove = mk(civ ? 0xc99a7a : 0x1f2226, 0.8), strap = mk(civ ? 0x30363c : 0x9a9f96, 0.9), yel = mk(0xd9b41e, 0.6), boot = mk(0x121316, 0.6), paper = mk(0xe6e2d4, 0.9), red = mk(0xb3261e, 0.6), seatM = mk(0x454b52, 0.95);
@@ -966,7 +957,7 @@
       }
       o.material = mat;
     });
-    if (spec.rocket || spec.car || !lights) return;
+    if (spec.rocket || !lights) return;
     const big = spec.span > 22, k = clamp(spec.span / 12, 0.8, 2.4), lg = new T.SphereGeometry(0.11 * k, 8, 6);
     if (ud.tips && ud.tips.length >= 2) {
       const r = new T.Mesh(lg, G.navMats.green); r.position.set(ud.tips[0][0], ud.tips[0][1], ud.tips[0][2] - 0.6); m.add(r);
@@ -1085,8 +1076,8 @@
     m.traverse((o) => { if (o.isMesh && !(o.material.blending === T.AdditiveBlending)) { o.castShadow = true; } });
     decorate(m, spec, opt);
     m.traverse((o) => { if (o.isMesh && o.material && (o.material === G.navMats.red || o.material === G.navMats.green || o.material === G.navMats.white || o.material === G.navMats.beacon)) o.castShadow = false; });
-    if (!opt.noCockpit && !spec.rocket && !spec.car) addCockpit(m, spec);
-    if (FULL && !spec.car) G.poseAircraft(m, REST, 0);
+    if (!opt.noCockpit && !spec.rocket) addCockpit(m, spec);
+    if (FULL) G.poseAircraft(m, REST, 0);
     return m;
   };
 
@@ -1133,16 +1124,18 @@
     return root;
   };
 
-  // an advertising / surveillance airship: envelope, gondola, cruciform fins and two engine pods
-  G.buildBlimp = function (hex, stripe) {
-    const g = new T.Group(), env = std(hex, 0.15, 0.55), st = std(stripe, 0.15, 0.55), dk = std(0x2a2d31, 0.4, 0.6), wh = std(0xe9ecee, 0.2, 0.5);
-    g.add(fus([[-31, 0], [-30, 2.2], [-26, 5.6], [-18, 8.4], [-6, 9.6], [6, 9.4], [18, 7.2], [26, 4.2], [31, 0.6]], 1, 1, env, 28));
-    g.add(fus([[-6.2, 9.62], [6.2, 9.44]], 1, 1, st, 28));
-    g.add(at(box(3.2, 2.6, 11, wh), 0, -10.4, -3)); g.add(at(box(3.3, 0.9, 7, M.window), 0, -9.9, -4.4)); g.add(at(box(0.5, 1.2, 0.5, dk), 0, -12.3, -5));
-    [0, 1, 2, 3].forEach((k) => { const piv = new T.Group(); piv.rotation.z = k * Math.PI / 2 + Math.PI / 4; const f = new T.Mesh(finG([[19, 3.4], [23.5, 10.5], [29, 10.5], [29.5, 2.2]], 0.5), k % 2 ? st : env); piv.add(f); g.add(piv); });
-    [1, -1].forEach((sd) => { g.add(at(cyl(0.9, 0.7, 3.2, dk), sd * 4.2, -9.6, 2)); g.add(at(box(2.6, 0.3, 0.6, dk), sd * 2.6, -9.6, 2)); const pr = at(cyl(1.9, 1.9, 0.12, new T.MeshBasicMaterial({ color: 0x9aa0a6, transparent: true, opacity: 0.25, depthWrite: false })), sd * 4.2, -9.6, 3.8); g.add(pr); });
-    g.traverse((o) => { if (o.isMesh) o.castShadow = false; });
-    return G.flattenModel(g, []);
+  // a hot-air balloon: an envelope of coloured gores, a wicker basket on ropes and a burner. Origin at the envelope's centre.
+  G.buildBalloon = function (cols, R) {
+    const g = new T.Group(), k = R / 13, mats = cols.map((c) => new T.MeshStandardMaterial({ color: c, roughness: 0.7, metalness: 0, side: T.DoubleSide }));
+    const prof = [[2.3, -21], [4.2, -18], [7.6, -13], [10.8, -7], [12.6, -1], [13, 4], [12, 8.5], [9.4, 11.6], [5.2, 13.4], [0.02, 14]].map((q) => new T.Vector2(q[0] * k, q[1] * k)), N = 16;
+    for (let i = 0; i < N; i++) g.add(new T.Mesh(new T.LatheGeometry(prof, 2, i / N * Math.PI * 2, Math.PI * 2 / N), mats[i % mats.length]));
+    const wicker = std(0x8a5a2b, 0.0, 0.9), dk = std(0x2a2d31, 0.4, 0.6), by = -27.5 * k;
+    g.add(at(box(2.6 * k, 1.7 * k, 2.6 * k, wicker), 0, by, 0)); g.add(at(box(2.8 * k, 0.2 * k, 2.8 * k, dk), 0, by + 0.9 * k, 0));
+    [[1, 1], [1, -1], [-1, 1], [-1, -1]].forEach((q) => g.add(limb(new V3(q[0] * 1.25 * k, by + 0.9 * k, q[1] * 1.25 * k), new V3(q[0] * 1.9 * k, -21 * k, q[1] * 1.9 * k), 0.05 * k, dk)));
+    g.add(at(box(0.9 * k, 0.5 * k, 0.9 * k, dk), 0, -23.2 * k, 0));
+    const fl = new T.Mesh(new T.ConeGeometry(0.55 * k, 2.6 * k, 8), new T.MeshBasicMaterial({ color: 0xffb040, transparent: true, opacity: 0.85, blending: T.AdditiveBlending, depthWrite: false, fog: false })); fl.position.y = -21.6 * k;
+    G.flattenModel(g, []); g.add(fl); g.userData.flame = fl; g.userData.R = R;
+    return g;
   };
 
   G.buildBomb = function (w) {
