@@ -519,8 +519,20 @@
           .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.12, lWater);')
           .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, 0.5, lWater);');
       };
-      const mesh = new T.Mesh(g, landMat);
-      mesh.receiveShadow = true; this.scene.add(mesh);
+      // the land is drawn as a grid of tiles that share one set of vertices, so tiles behind or beside the camera are skipped
+      { const TN = 8, per = N / TN, pa = g.attributes.position, na = g.attributes.normal, ca = g.attributes.color, ua = g.attributes.uv;
+        for (let ty = 0; ty < TN; ty++) for (let tx = 0; tx < TN; tx++) {
+          const idx = new Uint32Array(per * per * 6); let o = 0, lo = 1e9, hi = -1e9;
+          for (let iy = ty * per; iy < (ty + 1) * per; iy++) for (let ix = tx * per; ix < (tx + 1) * per; ix++) {
+            const a = ix + (N + 1) * iy, b = ix + (N + 1) * (iy + 1), c2 = ix + 1 + (N + 1) * (iy + 1), d = ix + 1 + (N + 1) * iy;
+            idx[o++] = a; idx[o++] = b; idx[o++] = d; idx[o++] = b; idx[o++] = c2; idx[o++] = d;
+            const h = hs[a]; if (h < lo) lo = h; if (h > hi) hi = h; const h2 = hs[c2]; if (h2 < lo) lo = h2; if (h2 > hi) hi = h2;
+          }
+          const tg = new T.BufferGeometry(); tg.setAttribute('position', pa); tg.setAttribute('normal', na); tg.setAttribute('color', ca); tg.setAttribute('uv', ua); tg.setIndex(new T.BufferAttribute(idx, 1));
+          const half = per * CELL / 2, cx = -HALF + (tx + 0.5) * per * CELL, cz = -HALF + (ty + 0.5) * per * CELL;
+          tg.boundingSphere = new T.Sphere(new T.Vector3(cx, (lo + hi) / 2, cz), Math.hypot(half, half, (hi - lo) / 2) + CELL);
+          const tm2 = new T.Mesh(tg, landMat); tm2.receiveShadow = true; tm2.matrixAutoUpdate = false; this.scene.add(tm2);
+        } }
       // animated sea: layered waves bend the surface normal, with crest highlights and whitecaps
       const seaMat = new T.MeshStandardMaterial({ color: 0x17547c, roughness: 0.14, metalness: 0.55 });
       const seaU = this.seaU = { time: { value: 0 }, amp: { value: 1 } };

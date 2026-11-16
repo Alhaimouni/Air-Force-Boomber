@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Air Boomber — Flight Simulator</title>
-<link rel="stylesheet" href="css/style.css?v=24">
+<link rel="stylesheet" href="css/style.css?v=25">
 </head>
 <body>
 <canvas id="gl"></canvas>
@@ -115,7 +115,8 @@
 
 <div id="settings" class="overlay hidden"><div class="box wide">
   <h2>Graphics settings</h2>
-  <div class="row"><label for="gPreset">Quality preset</label><select id="gPreset"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option><option value="custom">Custom</option></select></div>
+  <div class="row"><label for="gPreset">Quality preset</label><select id="gPreset"><option value="auto">Auto (recommended)</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option><option value="custom">Custom</option></select></div>
+  <div class="row note" id="gAuto"></div>
   <div class="row"><label for="gScale">Resolution scale</label><input type="range" id="gScale" min="40" max="200" step="5"><span id="gScaleV"></span></div>
   <div class="row note" id="gRes"></div>
   <div class="row"><label for="gView">City view distance</label><input type="range" id="gView" min="20" max="90" step="2"><span id="gViewV"></span></div>
@@ -131,15 +132,15 @@
   <button id="btnSettingsClose">Close</button>
 </div></div>
 
-<script src="lib/three.min.js?v=24"></script>
-<script src="js/data.js?v=24"></script>
-<script src="js/physics.js?v=24"></script>
-<script src="js/models.js?v=24"></script>
-<script src="js/world.js?v=24"></script>
-<script src="js/city.js?v=24"></script>
-<script src="js/effects.js?v=24"></script>
-<script src="js/audio.js?v=24"></script>
-<script src="js/hud.js?v=24"></script>
-<script src="js/game.js?v=24"></script>
+<script src="lib/three.min.js?v=25"></script>
+<script src="js/data.js?v=25"></script>
+<script src="js/physics.js?v=25"></script>
+<script src="js/models.js?v=25"></script>
+<script src="js/world.js?v=25"></script>
+<script src="js/city.js?v=25"></script>
+<script src="js/effects.js?v=25"></script>
+<script src="js/audio.js?v=25"></script>
+<script src="js/hud.js?v=25"></script>
+<script src="js/game.js?v=25"></script>
 </body>
 </html>
