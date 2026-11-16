@@ -24,7 +24,8 @@
     const pitch = e.x, yaw = e.y, roll = e.z;
     x.clearRect(0, 0, W, H);
     x.lineWidth = 1.6; x.strokeStyle = GREEN; x.fillStyle = GREEN; x.font = '13px Consolas, monospace'; x.textBaseline = 'middle';
-    x.shadowColor = 'rgba(0,0,0,0.7)'; x.shadowBlur = 3;
+    // (the dark halo that keeps the symbology readable over bright ground is a single CSS drop-shadow on the canvas,
+    // set in game.js: one GPU pass a frame instead of a blurred shadow behind each of several hundred strokes)
     const pd = pitch * 57.3;
 
     // pitch ladder (world-conformal)

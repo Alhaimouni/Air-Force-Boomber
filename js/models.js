@@ -1043,6 +1043,49 @@
     return m;
   };
 
+  // Bake a model's static parts into one mesh per material. An aircraft built from fifty little meshes costs fifty draw
+  // calls and fifty matrix updates a frame; baked, it costs a handful. Anything under `keep` (parts that move or are
+  // switched on and off) is left alone.
+  const HIDDEN = new T.MeshBasicMaterial({ visible: false });
+  G.flattenModel = function (root, keep) {
+    root.updateMatrixWorld(true);
+    const inv = new T.Matrix4().copy(root.matrixWorld).invert(), kept = new Set(), groups = new Map(), gone = [];
+    (keep || []).forEach((o) => { if (o) o.traverse((c) => kept.add(c)); });
+    const m4 = new T.Matrix4(), n3 = new T.Matrix3(), v = new T.Vector3();
+    root.traverse((o) => {
+      if (o === root || !o.isMesh || o.isInstancedMesh || kept.has(o) || Array.isArray(o.material) || !o.geometry.attributes.position || !o.geometry.attributes.normal) return;
+      for (let q = o; q && q !== root; q = q.parent) if (!q.visible) return;
+      const names = Object.keys(o.geometry.attributes).sort().join(','), k = o.material.uuid + '|' + o.castShadow + '|' + o.receiveShadow + '|' + o.renderOrder + '|' + o.layers.mask + '|' + names;
+      let e = groups.get(k); if (!e) groups.set(k, e = { src: o, parts: [], n: 0 });
+      e.parts.push(o); gone.push(o);
+    });
+    groups.forEach((e) => {
+      if (e.parts.length < 2) { gone.splice(gone.indexOf(e.parts[0]), 1); return; }
+      const geos = e.parts.map((o) => (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry)); let total = 0; geos.forEach((gg) => { total += gg.attributes.position.count; });
+      const out = new T.BufferGeometry();
+      Object.keys(geos[0].attributes).forEach((nm) => {
+        const a0 = geos[0].attributes[nm], sz = a0.itemSize, arr = new a0.array.constructor(total * sz); let off = 0;
+        geos.forEach((gg, gi) => {
+          const a = gg.attributes[nm], o = e.parts[gi], n = a.count; m4.multiplyMatrices(inv, o.matrixWorld); const flip = m4.determinant() < 0;
+          if (nm === 'normal') n3.getNormalMatrix(m4);
+          for (let i = 0; i < n; i++) {
+            const src = flip && i % 3 ? i + (i % 3 === 1 ? 1 : -1) : i, d = (off + i) * sz; // mirrored parts need their winding reversed
+            if (nm === 'position') { v.fromBufferAttribute(a, src).applyMatrix4(m4); arr[d] = v.x; arr[d + 1] = v.y; arr[d + 2] = v.z; }
+            else if (nm === 'normal') { v.fromBufferAttribute(a, src).applyMatrix3(n3).normalize(); arr[d] = v.x; arr[d + 1] = v.y; arr[d + 2] = v.z; }
+            else for (let c = 0; c < sz; c++) arr[d + c] = a.array[src * sz + c];
+          }
+          off += n;
+        });
+        out.setAttribute(nm, new T.BufferAttribute(arr, sz, a0.normalized));
+      });
+      const mesh = new T.Mesh(out, e.src.material); mesh.castShadow = e.src.castShadow; mesh.receiveShadow = e.src.receiveShadow; mesh.renderOrder = e.src.renderOrder; mesh.layers.mask = e.src.layers.mask;
+      mesh.matrixAutoUpdate = false; root.add(mesh);
+    });
+    // a merged mesh that still parents live parts keeps its node but draws nothing
+    gone.forEach((o) => { if (o.children.length) { o.material = HIDDEN; return; } let p = o.parent; p.remove(o); while (p && p !== root && !p.children.length && !kept.has(p) && !p.isMesh) { const pp = p.parent; if (pp) pp.remove(p); p = pp; } });
+    return root;
+  };
+
   G.buildBomb = function (w) {
     const g = new T.Group();
     const mat = std(w.color, 0.4, 0.6);

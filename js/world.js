@@ -122,11 +122,11 @@
   G.C = C;
   const F0 = [1, 1, 0, 0];
   class GB {
-    constructor() { this.p = []; this.n = []; this.c = []; this.u = []; this.f = []; this.minx = 1e9; this.maxx = -1e9; this.minz = 1e9; this.maxz = -1e9; this.maxy = 0; this.ox = 0; this.oz = 0; }
+    constructor() { this.p = []; this.n = []; this.c = []; this.u = []; this.f = []; this.F = { p: [], n: [], c: [], u: [], f: [] }; this.M = { p: [], n: [], c: [], u: [], f: [] }; this._t = this; this.fine = 0; this.minx = 1e9; this.maxx = -1e9; this.minz = 1e9; this.maxz = -1e9; this.maxy = 0; this.ox = 0; this.oz = 0; } // F: small parts, drawn only up close; M: medium parts, dropped at long range
     _v(v, nx, ny, nz, col, uu, vv, fac) {
       const px = v[0] + this.ox, pz = v[2] + this.oz;
-      this.p.push(px, v[1], pz); this.n.push(nx, ny, nz); this.c.push(col.r, col.g, col.b); this.u.push(uu, vv);
-      this.f.push(fac[0], fac[1], fac[2], fac[3]);
+      const t = this._t; t.p.push(px, v[1], pz); t.n.push(nx, ny, nz); t.c.push(col.r, col.g, col.b); t.u.push(uu, vv);
+      t.f.push(fac[0], fac[1], fac[2], fac[3]);
       if (px < this.minx) this.minx = px; if (px > this.maxx) this.maxx = px;
       if (pz < this.minz) this.minz = pz; if (pz > this.maxz) this.maxz = pz;
       if (v[1] > this.maxy) this.maxy = v[1];
@@ -155,6 +155,8 @@
       for (let i = 0; i < P.length; i++) { const j = (i + 1) % P.length; A += P[i][0] * P[j][1] - P[j][0] * P[i][1]; }
       if (A > 0) P = P.slice().reverse();
       const n = P.length, top = o.top === undefined ? 1 : o.top, tw = o.twist || 0, segs = o.segs || (tw ? 20 : 1);
+      let bx0 = 1e9, bx1 = -1e9, bz0 = 1e9, bz1 = -1e9; for (let i = 0; i < n; i++) { const q = P[i]; if (q[0] < bx0) bx0 = q[0]; if (q[0] > bx1) bx1 = q[0]; if (q[1] < bz0) bz0 = q[1]; if (q[1] > bz1) bz1 = q[1]; }
+      const keep = this._t, tier = this._tier(bx1 - bx0, Math.abs(y1 - y0), bz1 - bz0); if (tier && keep === this) this._t = tier === 1 ? this.F : this.M;
       let cx = o.cx, cz = o.cz;
       if (cx === undefined) { cx = 0; cz = 0; P.forEach((p) => { cx += p[0] / n; cz += p[1] / n; }); }
       const lv = [];
@@ -175,15 +177,19 @@
         const tris = T.ShapeUtils.triangulateShape(tp.map((p) => new T.Vector2(p[0], p[2])), []);
         tris.forEach((f) => this.tri(tp[f[0]], tp[f[1]], tp[f[2]], cc, true));
       }
+      this._t = keep;
       return this;
     }
+    // Sort a part by size: 1 = small (could not cover a pixel from a few kilometres away), 2 = medium (the same from
+    // ten), 0 = the bulk. Each tier is drawn only out to the range where it still shows (see World.update).
+    _tier(a, b, c) { if (this.fine) return 1; const mx = Math.max(a, b, c), mid = a + b + c - mx - Math.min(a, b, c); return mid < 2.3 && mid * mx < 13 ? 1 : mid < 6.5 && mx < 14 ? 2 : 0; }
     box(x, y, z, w, h, d, col, fac, capCol, rot) {
       let P = [[-w / 2, -d / 2], [w / 2, -d / 2], [w / 2, d / 2], [-w / 2, d / 2]];
       const ca = Math.cos(rot || 0), sa = Math.sin(rot || 0);
       P = P.map((p) => [x + p[0] * ca - p[1] * sa, z + p[0] * sa + p[1] * ca]);
       return this.prism(P, y, y + h, col, fac, { capCol });
     }
-    cyl(x, y, z, r, h, n, col, fac, o) { return this.prism(GB.ngon(x, z, r, r, n), y, y + h, col, fac, o); }
+    cyl(x, y, z, r, h, n, col, fac, o) { if (r < 1.1 && n > 6) n = 6; return this.prism(GB.ngon(x, z, r, r, n), y, y + h, col, fac, o); }
     static ngon(x, z, rx, rz, n, rot) {
       const P = []; rot = rot || 0;
       for (let i = 0; i < n; i++) { const a = rot + i / n * Math.PI * 2; P.push([x + Math.cos(a) * rx, z + Math.sin(a) * rz]); }
@@ -214,7 +220,11 @@
       return this;
     }
     add(geom, x, y, z, sx, sy, sz, col, rx, ry, rz) {
-      const g = geom.index ? geom.toNonIndexed() : geom;
+      const big = Math.max(Math.abs(sx), Math.abs(sy), Math.abs(sz)); // small copies of round shapes use a lighter mesh
+      if (geom.userData.lo && big < 4.2) geom = geom.userData.lo; else if (geom.userData.mid && big < 13) geom = geom.userData.mid;
+      const g = geom.index ? (geom.userData.flat || (geom.userData.flat = geom.toNonIndexed())) : geom;
+      if (!g.boundingBox) g.computeBoundingBox(); const bb = g.boundingBox, keep = this._t;
+      const tier = this._tier((bb.max.x - bb.min.x) * Math.abs(sx), (bb.max.y - bb.min.y) * Math.abs(sy), (bb.max.z - bb.min.z) * Math.abs(sz)); if (tier && keep === this) this._t = tier === 1 ? this.F : this.M;
       const m = new T.Matrix4().compose(new T.Vector3(x, y, z), new T.Quaternion().setFromEuler(new T.Euler(rx || 0, ry || 0, rz || 0)), new T.Vector3(sx, sy, sz));
       const nm = new T.Matrix3().getNormalMatrix(m);
       const pos = g.attributes.position, nor = g.attributes.normal, v = new T.Vector3(), nn = new T.Vector3();
@@ -222,15 +232,16 @@
         v.fromBufferAttribute(pos, i).applyMatrix4(m); nn.fromBufferAttribute(nor, i).applyMatrix3(nm).normalize();
         this._v([v.x, v.y, v.z], nn.x, nn.y, nn.z, col, 0, 0, F0);
       }
+      this._t = keep;
       return this;
     }
     build() {
-      const g = new T.BufferGeometry();
-      g.setAttribute('position', new T.Float32BufferAttribute(this.p, 3));
-      g.setAttribute('normal', new T.Float32BufferAttribute(this.n, 3));
-      g.setAttribute('color', new T.Float32BufferAttribute(this.c, 3));
-      g.setAttribute('fuv', new T.Float32BufferAttribute(this.u, 2));
-      g.setAttribute('facade', new T.Float32BufferAttribute(this.f, 4));
+      const g = new T.BufferGeometry(), all = (a, k) => a.concat(this.F[k], this.M[k]);
+      g.setAttribute('position', new T.Float32BufferAttribute(all(this.p, 'p'), 3));
+      g.setAttribute('normal', new T.Float32BufferAttribute(all(this.n, 'n'), 3));
+      g.setAttribute('color', new T.Float32BufferAttribute(all(this.c, 'c'), 3));
+      g.setAttribute('fuv', new T.Float32BufferAttribute(all(this.u, 'u'), 2));
+      g.setAttribute('facade', new T.Float32BufferAttribute(all(this.f, 'f'), 4));
       g.computeBoundingSphere(); g.computeBoundingBox();
       return g;
     }
@@ -371,6 +382,7 @@
       this.destroyedCount = 0; this.targetCount = 0;
       this._terrain(); AIRPORTS.forEach((a, i) => this._airport(a, i)); this._carrier(); this._spaceCenter();
       G.buildCity(this); this._roads();
+      this._batch();
       this._trees(); this._scenery();
       this._map();
     }
@@ -684,25 +696,78 @@
     // register a building built in local coordinates
     addBuilding(gb, x, y, z, o) {
       o = o || {};
-      const mesh = new T.Mesh(gb.build(), this.cityMat);
-      mesh.position.set(x, y, z); mesh.receiveShadow = true;
-      mesh.matrixAutoUpdate = false; mesh.updateMatrix();
-      (o.group || this.curGroup || this.scene).add(mesh);
+      const mesh = null, par = o.group || this.curGroup || this.scene; // drawn as part of a batch until it is hit (see _batch)
       const hw = (gb.maxx - gb.minx) / 2, hd = (gb.maxz - gb.minz) / 2, cx = x + (gb.maxx + gb.minx) / 2, cz = z + (gb.maxz + gb.minz) / 2;
       const h = o.ch || gb.maxy, vol = hw * 2 * hd * 2 * h * (o.fill || 0.6);
       const b = {
         mesh, x: cx, z: cz, hw, hd, h, top: gb.maxy, vol, hp: 1 + vol / 50000, alive: true, scorched: false,
-        ox0: x, oz0: z, value: Math.max(1500, Math.round(vol * 0.5 * (o.mult || 1) / 100) * 100), name: o.name || null, airport: !!o.airport, kind: o.kind || 'bld', landmark: !!o.landmark
+        ox0: x, oy0: y, oz0: z, par, bm: null, rg: null, value: Math.max(1500, Math.round(vol * 0.5 * (o.mult || 1) / 100) * 100), name: o.name || null, airport: !!o.airport, kind: o.kind || 'bld', landmark: !!o.landmark
       };
       if (o.hp) b.hp = o.hp; if (o.value) b.value = o.value;
       b.maxHp = b.hp;
       this.buildings.push(b);
+      (this._pend || (this._pend = [])).push({ b, gb }); if (this._batched) this._batch();
       if (!b.airport) this.targetCount++;
       const c0x = Math.floor((cx - hw) / 250), c1x = Math.floor((cx + hw) / 250), c0z = Math.floor((cz - hd) / 250), c1z = Math.floor((cz + hd) / 250);
       for (let ix = c0x; ix <= c1x; ix++) for (let iz = c0z; iz <= c1z; iz++) {
         const k = ix + ',' + iz; let a = this.grid.get(k); if (!a) this.grid.set(k, a = []); a.push(b);
       }
       return b;
+    }
+
+    // Buildings are merged into one mesh per 700 m cell (two, in fact: the bulk, and a layer of small parts that is only
+    // drawn up close), so a city costs a few dozen draw calls instead of thousands. A building keeps its vertex range and is
+    // lifted out into a mesh of its own the moment it has to move.
+    _batch() {
+      const pend = this._pend || []; this._pend = []; this._batched = true; if (!pend.length) return;
+      const CS = 700, groups = new Map(); this.fineBatches = this.fineBatches || [];
+      pend.forEach((e) => { const k = e.b.par.uuid + '|' + Math.floor(e.b.ox0 / CS) + ',' + Math.floor(e.b.oz0 / CS); let a = groups.get(k); if (!a) groups.set(k, a = []); a.push(e); });
+      groups.forEach((list) => {
+        let cx = 0, cz = 0; list.forEach((e) => { cx += e.b.ox0; cz += e.b.oz0; }); cx = Math.round(cx / list.length); cz = Math.round(cz / list.length);
+        const mk = (k) => {
+          const src = (gb) => (k === 1 ? gb.F : k === 2 ? gb.M : gb); let nv = 0; list.forEach((e) => { nv += src(e.gb).p.length / 3; }); if (!nv) return null;
+          const P = new Float32Array(nv * 3), Nn = new Int8Array(nv * 3), Cc = new Uint16Array(nv * 3), U = new Float32Array(nv * 2), Fc = new Float32Array(nv * 4); let o = 0;
+          list.forEach((e) => {
+            const a = src(e.gb), n = a.p.length / 3, b = e.b, dx = b.ox0 - cx, dz = b.oz0 - cz;
+            (b.rg || (b.rg = [null, null, null]))[k] = [o, n];
+            for (let i = 0; i < n; i++) {
+              const j = (o + i) * 3;
+              P[j] = a.p[i * 3] + dx; P[j + 1] = a.p[i * 3 + 1] + b.oy0; P[j + 2] = a.p[i * 3 + 2] + dz;
+              Nn[j] = Math.round(a.n[i * 3] * 127); Nn[j + 1] = Math.round(a.n[i * 3 + 1] * 127); Nn[j + 2] = Math.round(a.n[i * 3 + 2] * 127);
+              Cc[j] = Math.min(65535, a.c[i * 3] * 65535); Cc[j + 1] = Math.min(65535, a.c[i * 3 + 1] * 65535); Cc[j + 2] = Math.min(65535, a.c[i * 3 + 2] * 65535);
+            }
+            U.set(a.u, o * 2); Fc.set(a.f, o * 4); o += n;
+          });
+          const g = new T.BufferGeometry();
+          g.setAttribute('position', new T.BufferAttribute(P, 3)); g.setAttribute('normal', new T.BufferAttribute(Nn, 3, true)); g.setAttribute('color', new T.BufferAttribute(Cc, 3, true));
+          g.setAttribute('fuv', new T.BufferAttribute(U, 2)); g.setAttribute('facade', new T.BufferAttribute(Fc, 4)); g.computeBoundingSphere();
+          const m = new T.Mesh(g, this.cityMat); m.position.set(cx, 0, cz); m.receiveShadow = true; m.matrixAutoUpdate = false; m.updateMatrix(); list[0].b.par.add(m);
+          return m;
+        };
+        const bm = [mk(0), mk(1), mk(2)];
+        list.forEach((e) => { e.b.bm = bm; e.b.bx = cx; e.b.bz = cz; });
+        [1, 2].forEach((k) => { if (bm[k]) { const bs = bm[k].geometry.boundingSphere; this.fineBatches.push({ m: bm[k], x: cx + bs.center.x, y: bs.center.y, z: cz + bs.center.z, r: bs.radius, far: k === 1 ? 4200 : 10000 }); } });
+      });
+    }
+    // lift a building out of its batch into a mesh of its own, so it can be moved
+    _detach(b) {
+      if (b.mesh) return b.mesh;
+      const g = new T.BufferGeometry(), parts = b.bm ? [0, 1, 2].filter((k) => b.bm[k] && b.rg[k] && b.rg[k][1] > 0) : [];
+      if (parts.length) {
+        let total = 0; parts.forEach((k) => { total += b.rg[k][1]; });
+        ['position', 'normal', 'color', 'fuv', 'facade'].forEach((nm) => {
+          const a0 = b.bm[parts[0]].geometry.attributes[nm], sz = a0.itemSize, arr = new a0.array.constructor(total * sz); let o = 0;
+          parts.forEach((k) => { const a = b.bm[k].geometry.attributes[nm], s0 = b.rg[k][0], n = b.rg[k][1]; arr.set(a.array.subarray(s0 * sz, (s0 + n) * sz), o); o += n * sz; });
+          g.setAttribute(nm, new T.BufferAttribute(arr, sz, a0.normalized));
+        });
+        const pa = g.attributes.position.array, dx = b.bx - b.ox0, dz = b.bz - b.oz0;
+        for (let i = 0; i < pa.length; i += 3) { pa[i] += dx; pa[i + 1] -= b.oy0; pa[i + 2] += dz; }
+        parts.forEach((k) => { const a = b.bm[k].geometry.attributes.position, s0 = b.rg[k][0] * 3, n = b.rg[k][1] * 3; a.array.fill(0, s0, s0 + n); a.addUpdateRange(s0, n); a.needsUpdate = true; });
+      } else g.setAttribute('position', new T.BufferAttribute(new Float32Array(9), 3));
+      g.computeBoundingSphere();
+      const m = new T.Mesh(g, this.cityMat); m.position.set(b.ox0, b.oy0, b.oz0); m.receiveShadow = true; m.matrixAutoUpdate = false; m.updateMatrix();
+      (b.par || this.scene).add(m); b.mesh = m; b.bm = null;
+      return m;
     }
 
     forNear(x, z, r, fn) {
@@ -755,16 +820,17 @@
 
     scorch(b) {
       b.scorched = true;
-      const col = b.mesh.geometry.attributes.color, a = col.array;
-      for (let i = 0; i < a.length; i++) a[i] *= 0.42;
-      col.needsUpdate = true;
+      if (b.mesh) { const col = b.mesh.geometry.attributes.color; if (col) { const a = col.array; for (let i = 0; i < a.length; i++) a[i] *= 0.42; col.needsUpdate = true; } }
+      else if (b.bm) [0, 1, 2].forEach((k) => { // darken its vertices inside the batch
+        if (!b.bm[k] || !b.rg[k] || !b.rg[k][1]) return; const col = b.bm[k].geometry.attributes.color, a = col.array, s0 = b.rg[k][0] * 3, n = b.rg[k][1] * 3;
+        for (let i = s0; i < s0 + n; i++) a[i] *= 0.42; col.addUpdateRange(s0, n); col.needsUpdate = true; });
       if (G.fx) G.fx.addEmitter({ x: b.x, y: b.top * 0.7, z: b.z, size: Math.min(30, 8 + b.hw * 0.4), life: 50, fire: 12 });
     }
 
     // from: blast position; tall slender buildings hit off-centre may topple away from it
     destroy(b, delay, from) {
       if (!b.alive) return;
-      b.alive = false;
+      b.alive = false; this._detach(b);
       if (!b.airport) this.destroyedCount++;
       if (b.kind === 'sam' && b.sam) b.sam.alive = false;
       const c = { b, t: -delay, dust: 0, deb: 0, mode: 'pancake' };
@@ -783,7 +849,12 @@
     update(dt, cam) {
       const fx = G.fx;
       if (this.seaU) this.seaU.time.value += dt;
-      if (cam && this.treeChunks) { const td = (this.cullDist || 46000) * 0.55; for (let i = 0; i < this.treeChunks.length; i++) { const t = this.treeChunks[i]; t.im.visible = Math.abs(cam.x - t.x) < td + 9000 && Math.abs(cam.z - t.z) < td + 9000 && cam.y < 60000; } }
+      // level of detail: lodK is how many screen pixels a metre covers relative to a 1080p screen at the normal field of view,
+      // so every cut-off below sits where the object has shrunk to well under a pixel, whatever the resolution or zoom
+      const lod = clamp(this.lodK || 1, 0.75, 4), full = this.cullDist || 46000;
+      if (cam && this.treeChunks) { const td = full * 0.55 + 9000, y2 = cam.y * cam.y; for (let i = 0; i < this.treeChunks.length; i++) { const t = this.treeChunks[i], dx = cam.x - t.x, dz = cam.z - t.z;
+        if (t.far) { const lim = Math.min(t.far * lod, full) + t.pad; t.im.visible = dx * dx + dz * dz + y2 < lim * lim; } else t.im.visible = Math.abs(dx) < td && Math.abs(dz) < td && cam.y < 60000; } }
+      if (cam && this.fineBatches) { for (let i = 0; i < this.fineBatches.length; i++) { const t = this.fineBatches[i], dx = cam.x - t.x, dy = cam.y - t.y, dz = cam.z - t.z, lim = t.far * lod + t.r; t.m.visible = dx * dx + dy * dy + dz * dz < lim * lim; } }
       if (this.spinners) for (let i = 0; i < this.spinners.length; i++) this.spinners[i].m.rotation.y += this.spinners[i].sp * dt;
       if (this.rotors) for (let i = 0; i < this.rotors.length; i++) this.rotors[i].m.rotation.z += this.rotors[i].sp * dt;
       if (cam) for (let i = 0; i < this.cityGroups.length; i++) { const g = this.cityGroups[i]; g.group.visible = Math.hypot(cam.x - g.x, cam.z - g.z) < (this.cullDist || 46000) + g.r; }
@@ -842,7 +913,7 @@
         m.scale.set(b.top * 0.55, clamp(Math.max(b.hw, b.hd) * 0.5, 3, 16), Math.max(b.hw, b.hd) * 1.3); m.rotation.y = -Math.atan2(c.dz, c.dx);
       } else { m.position.set(b.x, 0, b.z); m.scale.set(b.hw * 1.15, clamp(b.top * 0.07, 2, 14), b.hd * 1.15); m.rotation.y = Math.random() * 6.28; }
       m.matrixAutoUpdate = false; m.updateMatrix(); m.receiveShadow = true;
-      (b.mesh.parent || this.scene).add(m);
+      (b.par || this.scene).add(m);
     }
 
     addCityGroup(c, group) { this.scene.add(group); this.cityGroups.push({ x: c.x, z: c.z, r: c.r, group }); }
@@ -958,8 +1029,9 @@
       };
       const B = new T.BoxGeometry(1, 1, 1), CY = new T.CylinderGeometry(1, 1, 1, 8), CN4 = new T.ConeGeometry(1, 1, 4, 1), CN = new T.ConeGeometry(1, 1, 8, 1), ICO = new T.IcosahedronGeometry(1, 0), SPH = new T.SphereGeometry(1, 8, 6);
       const HC = new T.CylinderGeometry(1, 1, 1, 10, 1, false, Math.PI / 2, Math.PI); HC.rotateX(Math.PI / 2);
-      const TAP = new T.CylinderGeometry(0.68, 1, 1, 7);
-      const DISC = new T.CircleGeometry(1, 40); DISC.rotateX(-Math.PI / 2); const HALF_DISC = new T.CircleGeometry(1, 24, 0, Math.PI * 0.8); HALF_DISC.rotateX(-Math.PI / 2);
+      const TAP = new T.CylinderGeometry(0.68, 1, 1, 7), TRK = new T.CylinderGeometry(1, 1, 1, 5, 1, true); // trunks: five open sides
+      const DISC = new T.CircleGeometry(1, 48); DISC.rotateX(-Math.PI / 2); const SEC_A = new T.CircleGeometry(1, 20, 0, Math.PI * 0.8); SEC_A.rotateX(-Math.PI / 2); const SEC_B = new T.CircleGeometry(1, 28, Math.PI * 0.8, Math.PI * 1.2); SEC_B.rotateX(-Math.PI / 2);
+      const FY = 0.35; // every flat piece lies at one height: they never overlap, so nothing can flicker
       const PLN = new T.PlaneGeometry(1, 1); PLN.rotateX(-Math.PI / 2);
       const geos = {
         flatHouse: merge([[B, 0, 3, 0, 11, 6, 9, 0xffffff], [B, 0, 6.4, -4.3, 11, 0.8, 0.4, 0xffffff], [B, 0, 6.4, 4.3, 11, 0.8, 0.4, 0xffffff], [B, 2.5, 7.2, -1, 3, 2.4, 3.4, 0xf2ecdc], [CY, -3, 7, 2, 0.8, 1.6, 0.8, 0xe8e8e4], [B, 0, 1.6, 4.6, 2, 3.2, 0.2, 0x4a3a2c], [B, 7.5, 1.5, 1, 4, 3, 5, 0xeee6d2]]),
@@ -971,17 +1043,18 @@
         pylon: merge([[CN4, 0, 17, 0, 3.4, 34, 3.4, 0x9aa0a6, Math.PI / 4], [B, 0, 27, 0, 16, 0.5, 0.5, 0x9aa0a6], [B, 0, 22, 0, 12, 0.5, 0.5, 0x9aa0a6], [B, 0, 32, 0, 9, 0.5, 0.5, 0x9aa0a6]]),
         rock: merge([[ICO, 0, 0.35, 0, 1, 0.62, 0.9, 0xffffff]]),
         mesa: merge([[TAP, 0, 0.5, 0, 1, 1, 1, 0xffffff], [TAP, 0.15, 0.3, -0.1, 1.45, 0.6, 1.35, 0xe6d2c2, 0.6], [TAP, -0.2, 1.1, 0.15, 0.5, 0.35, 0.45, 0xf0e0d0, 1.3], [ICO, -0.9, 0.2, 0.7, 0.55, 0.45, 0.6, 0xdcc6b4], [ICO, 1.0, 0.15, -0.6, 0.5, 0.35, 0.5, 0xe8d4c4]]),
-        olive: merge([[ICO, 0, 2.8, 0, 3, 2.3, 3, 0xffffff], [CY, 0, 0.8, 0, 0.3, 1.6, 0.3, 0x6a5238]]),
-        palm: merge([[CY, 0, 4.5, 0, 0.32, 9, 0.32, 0x8a7250], [ICO, 0, 9.4, 0, 3.4, 1.3, 3.4, 0x3f6a2c], [ICO, 0, 8.6, 0, 2.2, 1.6, 2.2, 0x4f7a34]]),
+        olive: merge([[ICO, 0, 2.8, 0, 3, 2.3, 3, 0xffffff], [TRK, 0, 0.8, 0, 0.3, 1.6, 0.3, 0x6a5238]]),
+        palm: merge([[TRK, 0, 4.5, 0, 0.32, 9, 0.32, 0x8a7250], [ICO, 0, 9.4, 0, 3.4, 1.3, 3.4, 0x3f6a2c], [ICO, 0, 8.6, 0, 2.2, 1.6, 2.2, 0x4f7a34]]),
         greenhouse: merge([[HC, 0, 0, 0, 4, 3, 44, 0xffffff]]),
         tent: merge([[CN4, 0, 1.7, 0, 9, 3.4, 5, 0xffffff, Math.PI / 4], [B, 0, 0.5, 4.5, 8, 1, 0.2, 0xd8d0c0]]),
         solar: merge([[B, 0, 1.6, 0, 110, 0.15, 3.6, 0x1c2d52], [B, -40, 0.7, 0, 0.3, 1.4, 0.3, 0x8a8c8e], [B, 0, 0.7, 0, 0.3, 1.4, 0.3, 0x8a8c8e], [B, 40, 0.7, 0, 0.3, 1.4, 0.3, 0x8a8c8e]]),
         mast: merge([[CY, 0, 30, 0, 0.6, 20, 0.6, 0xc8102e], [CY, 0, 10, 0, 0.7, 20, 0.7, 0xf2f2f2], [CY, 0, 50, 0, 0.5, 20, 0.5, 0xf2f2f2], [B, 0, 1.5, 3, 4, 3, 4, 0xb8b8b4]]),
         turbine: merge([[CY, 0, 40, 0, 1.6, 80, 1.6, 0xf0f0ee], [B, 0, 81, 0.5, 3, 3, 8, 0xf0f0ee]]),
-        disc: DISC, halfDisc: HALF_DISC, field: PLN
+        boulder: null, disc: DISC, sectorA: SEC_A, sectorB: SEC_B, field: PLN
       };
-      const flatKeys = { disc: 1, halfDisc: 1, field: 1 };
-      [DISC, HALF_DISC, PLN].forEach((g) => g.setAttribute('color', new T.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 3).fill(1), 3)));
+      geos.boulder = geos.rock;
+      const flatKeys = { disc: 1, sectorA: 1, sectorB: 1, field: 1 };
+      [DISC, SEC_A, SEC_B, PLN].forEach((g) => g.setAttribute('color', new T.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 3).fill(1), 3)));
       const CREAM = [0xf2ecdc, 0xeae2cf, 0xf6f1e4, 0xe4dac4, 0xd9cdb2, 0xf8f4ea], TEMP = [0xe8e2d2, 0xd9c9a8, 0xc9d6dc, 0xe6d5c3, 0xdcc0a6, 0xf0ede6, 0xbfc9d6];
       this.villages = [];
       // a cluster of houses round a mosque or a church
@@ -1023,7 +1096,7 @@
       for (let i = 0; i < 70000; i++) {
         const x = r.range(-82000, 7000), z = r.range(12000, 66000); if (desertF(x, z) < 0.5 || r() > 0.45 + flatMask(x, z)) continue;
         const h = ok(x, z); if (h < 0) continue; const s = r.range(2, 9) * (r.chance(0.08) ? 3 : 1);
-        put('rock', x, h - s * 0.15, z, s * r.range(0.8, 1.4), s * r.range(0.7, 1.5), s * r.range(0.8, 1.4), r() * 6.28, r.pick([0xb89a70, 0xa8845c, 0xc4a57c, 0x9a7654, 0xb08060]));
+        put(s > 12 ? 'boulder' : 'rock', x, h - s * 0.15, z, s * r.range(0.8, 1.4), s * r.range(0.7, 1.5), s * r.range(0.8, 1.4), r() * 6.28, r.pick([0xb89a70, 0xa8845c, 0xc4a57c, 0x9a7654, 0xb08060]));
       }
       const jordan = (n) => CITIES.find((c) => c.name === n);
       // sandstone mesas ring Petra, standing in for the mountains the valley is cut into
@@ -1049,16 +1122,35 @@
       // irrigated circles and field strips on the flat desert plains, plus plastic greenhouses
       const GREENS = [0x4f7a34, 0x5f8a3a, 0x3f6a2c, 0x7a9a48, 0x9a8a50, 0x6a5a3a];
       const flats = CITIES.filter((c) => desertF(c.x, c.z) > 0.5 && c.name !== 'Petra').map((c) => [c.x, c.z, c.r + 3100]).concat(AIRPORTS.filter((a) => desertF(a.x, a.z) > 0.5).map((a) => [a.x, a.z, 5600]));
+      // every flat piece claims its rectangle, so no two ever overlap (overlapping coplanar pieces flicker) and none covers a highway
+      const claims = new Map(), CL = 500, roadCells = new Set();
+      (this.roadPaths || []).forEach((pts) => { for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1], n = Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 20); for (let k = 0; k <= n; k++) roadCells.add(Math.floor((a.x + (b.x - a.x) * k / n) / 40) + ',' + Math.floor((a.z + (b.z - a.z) * k / n) / 40)); } });
+      const free = (x0, x1, z0, z1) => {
+        for (let ix = Math.floor(x0 / CL); ix <= Math.floor(x1 / CL); ix++) for (let iz = Math.floor(z0 / CL); iz <= Math.floor(z1 / CL); iz++) { const a = claims.get(ix + ',' + iz); if (a) for (let i = 0; i < a.length; i++) { const c = a[i]; if (x0 < c[1] && x1 > c[0] && z0 < c[3] && z1 > c[2]) return false; } }
+        for (let ix = Math.floor((x0 - 30) / 40); ix <= Math.floor((x1 + 30) / 40); ix++) for (let iz = Math.floor((z0 - 30) / 40); iz <= Math.floor((z1 + 30) / 40); iz++) if (roadCells.has(ix + ',' + iz)) return false;
+        for (let i = 0; i <= 4; i++) for (let j = 0; j <= 4; j++) { const x = x0 + (x1 - x0) * i / 4, z = z0 + (z1 - z0) * j / 4; if (flatMask(x, z) > 0 || ok(x, z) < 0) return false; }
+        return true;
+      };
+      const claim = (x0, x1, z0, z1) => { const c = [x0, x1, z0, z1]; for (let ix = Math.floor(x0 / CL); ix <= Math.floor(x1 / CL); ix++) for (let iz = Math.floor(z0 / CL); iz <= Math.floor(z1 / CL); iz++) { const k = ix + ',' + iz; let a = claims.get(k); if (!a) claims.set(k, a = []); a.push(c); } };
+      const late = []; // things that stand beside the fields are placed after every field has claimed its ground
       for (let i = 0; i < 3000; i++) {
         const fz0 = flats[i % flats.length], fa = r() * 6.283, fr = Math.sqrt(r()) * fz0[2], x = fz0[0] + Math.cos(fa) * fr, z = fz0[1] + Math.sin(fa) * fr;
         if (desertF(x, z) < 0.6 || flatMask(x, z) > 0 || ok(x, z) < 0) continue;
         const t = r();
-        if (t < 0.22) { const s = r.range(170, 360); if (flatMask(x + s, z) > 0 || flatMask(x - s, z) > 0 || flatMask(x, z + s) > 0 || flatMask(x, z - s) > 0 || ok(x + s, z) < 0 || ok(x - s, z) < 0 || ok(x, z + s) < 0 || ok(x, z - s) < 0) continue;
-          put('disc', x, 0.5, z, s, 1, s, 0, r.pick(GREENS)); if (r.chance(0.6)) put('halfDisc', x, 0.62, z, s * 0.985, 1, s * 0.985, r() * 6.28, r.pick(GREENS)); put('flatHouse', x + s + 14, 0, z, 0.8, 0.8, 0.8, 0, 0xe8e8e4); }
-        else if (t < 0.62) { const w = r.range(60, 150), l = r.range(120, 320), ry = Math.round(r() * 2) * 1.5708; for (let k = 0; k < r.int(1, 4); k++) { const fx = x + (ry ? 0 : k * (w + 8)), fz = z + (ry ? k * (w + 8) : 0); if (ok(fx, fz) >= 0 && flatMask(fx, fz) === 0) put('field', fx, 0.45, fz, w, 1, l, ry, r.pick(GREENS)); } }
-        else if (t < 0.75) { const ry = r() * 3.14, n = r.int(4, 10); for (let k = 0; k < n; k++) { const gx = x + Math.cos(ry) * k * 9.5, gz = z - Math.sin(ry) * k * 9.5; if (ok(gx, gz) >= 0) put('greenhouse', gx, 0, gz, 1, 1, 1, ry, r.pick([0xf2f4f2, 0xe6ece8, 0xdfe6e0])); } }
-        else if (t < 0.8) { for (let k = 0; k < 3; k++) { const tx = x + r.range(-25, 25), tz = z + r.range(-25, 25); put('tent', tx, 0, tz, 1, 1, 1, r() * 6.28, r.pick([0x2c2620, 0x3a3028, 0x4a3c30, 0xd8d0c0])); } }
+        if (t < 0.22) { const s = r.range(170, 360), g1 = r.pick(GREENS), g2 = r.pick(GREENS), split = r.chance(0.6), ry = r() * 6.28; if (!free(x - s - 12, x + s + 12, z - s - 12, z + s + 12)) continue;
+          claim(x - s - 12, x + s + 12, z - s - 12, z + s + 12);
+          if (split) { put('sectorA', x, FY, z, s, 1, s, ry, g2); put('sectorB', x, FY, z, s, 1, s, ry, g1); } else put('disc', x, FY, z, s, 1, s, 0, g1);
+          late.push(['flatHouse', x + s + 22, z, 0, 0xe8e8e4]); }
+        else if (t < 0.62) { const w = r.range(60, 150), l = r.range(120, 320), ry = Math.round(r() * 2) * 1.5708, n = r.int(1, 4), along = Math.abs(Math.sin(ry)) > 0.5; // along: the strip's long side runs east-west
+          for (let k = 0; k < n; k++) { const fx = x + (along ? 0 : k * (w + 8)), fz = z + (along ? k * (w + 8) : 0), hx = (along ? l : w) / 2, hz = (along ? w : l) / 2, col = r.pick(GREENS);
+            if (!free(fx - hx - 3, fx + hx + 3, fz - hz - 3, fz + hz + 3)) continue; claim(fx - hx - 3, fx + hx + 3, fz - hz - 3, fz + hz + 3); put('field', fx, FY, fz, w, 1, l, ry, col); } }
+        else if (t < 0.75) { const ry = r() * 3.14, n = r.int(4, 10), cl = r.pick([0xf2f4f2, 0xe6ece8, 0xdfe6e0]); for (let k = 0; k < n; k++) late.push(['greenhouse', x + Math.cos(ry) * k * 9.5, z - Math.sin(ry) * k * 9.5, ry, cl, 26]); }
+        else if (t < 0.8) { for (let k = 0; k < 3; k++) late.push(['tent', x + r.range(-25, 25), z + r.range(-25, 25), r() * 6.28, r.pick([0x2c2620, 0x3a3028, 0x4a3c30, 0xd8d0c0]), 8]); }
       }
+      const clear = (x, z, pad) => { const a = claims.get(Math.floor(x / CL) + ',' + Math.floor(z / CL)); if (a) for (let i = 0; i < a.length; i++) { const c = a[i]; if (x > c[0] - pad && x < c[1] + pad && z > c[2] - pad && z < c[3] + pad) return false; } return true; };
+      late.forEach((q) => { if (ok(q[1], q[2]) >= 0 && clear(q[1], q[2], q[5] || 6)) put(q[0], q[1], 0, q[2], q[0] === 'flatHouse' ? 0.8 : 1, q[0] === 'flatHouse' ? 0.8 : 1, q[0] === 'flatHouse' ? 0.8 : 1, q[3], q[4]); });
+      // nothing else (rocks, houses, trees) may stand in a field
+      lists.forEach((list, key) => { if (flatKeys[key]) return; let n = 0; for (let i = 0; i < list.length; i++) { const it = list[i]; if (clear(it[0], it[2], key === 'greenhouse' ? 26 : 4)) list[n++] = it; } list.length = n; });
       // solar farms outside the desert cities
       [['Zarqa', 2800, 0.3], ['Amman', 4600, 2.3], ['Petra', 2300, 1.2], ['Dubai', 5200, 3.6], ['Cairo', 4700, 5.2], ['Irbid', 3000, 0.9]].forEach((q) => {
         const c = jordan(q[0]), p = G.cityEdge(c, q[2], q[1]);
@@ -1078,16 +1170,16 @@
         put('turbine', x, h, z, 1, 1, 1, 0, 0xffffff);
         const rm = new T.Mesh(rotorG, rotMat); rm.position.set(x, h + 81, z + 5); rm.rotation.z = k * 0.7; this.scene.add(rm); this.rotors.push({ m: rm, sp: 1.1 + (k % 3) * 0.15, x, z });
       }
-      // build the instanced meshes, split into 16 km chunks
-      const CH = 8000;
+      // build the instanced meshes, split into chunks; small things get small chunks and a short draw distance (see update)
+      const FAR = { rock: 6500, tent: 7000, olive: 9000, palm: 9000, pylon: 12000, greenhouse: 15000, flatHouse: 17000, flatHouse2: 17000, gableHouse: 17000, solar: 17000, waterTower: 20000, minaret: 22000, steeple: 22000 };
       lists.forEach((list, key) => {
-        const buckets = new Map();
+        const buckets = new Map(), far = FAR[key] || 0, CH = far && far < 10000 ? 3000 : far ? 6000 : 8000;
         list.forEach((it) => { const k = Math.floor(it[0] / CH) + ',' + Math.floor(it[2] / CH); let a = buckets.get(k); if (!a) buckets.set(k, a = []); a.push(it); });
         buckets.forEach((items) => {
           const im = new T.InstancedMesh(geos[key], flatKeys[key] ? flatMat : mat, items.length); let sx = 0, sz = 0;
           items.forEach((it, i) => { d.position.set(it[0], it[1], it[2]); d.scale.set(it[3], it[4], it[5]); d.rotation.set(0, it[6], 0); d.updateMatrix(); im.setMatrixAt(i, d.matrix); im.setColorAt(i, col.set(it[7])); sx += it[0]; sz += it[2]; });
           im.computeBoundingSphere(); im.matrixAutoUpdate = false; if (!flatKeys[key]) im.castShadow = false; im.receiveShadow = !!flatKeys[key];
-          this.scene.add(im); this.treeChunks.push({ im, x: sx / items.length, z: sz / items.length });
+          this.scene.add(im); this.treeChunks.push({ im, x: sx / items.length, z: sz / items.length, far, pad: CH * 0.75 });
         });
       });
       this.sceneryCount = 0; lists.forEach((l) => { this.sceneryCount += l.length; });
