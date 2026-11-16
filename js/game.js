@@ -24,12 +24,29 @@
     high: { scale: 1, shadows: true, view: 46, fx: 1, sea: true },
     ultra: { scale: 1.5, shadows: true, view: 70, fx: 1.6, sea: true }
   };
-  const gfx = Object.assign({ preset: 'high', aa: true, fpsCap: 0, showFps: false, power: 'high-performance' }, PRESETS.high);
-  try { const s = JSON.parse(localStorage.getItem(GFX_KEY)); if (s) Object.assign(gfx, s); } catch (e) { /* defaults */ }
+  // Auto quality: a ladder of settings from full detail down to the lightest. The game starts on the rung that suits the
+  // device, then watches the frame rate and moves down a rung when it cannot hold the target, or back up when it has room.
+  const LADDER = [
+    { scale: 1, shadows: true, view: 46, fx: 1, sea: true },
+    { scale: 0.85, shadows: true, view: 46, fx: 1, sea: true },
+    { scale: 0.75, shadows: true, view: 40, fx: 0.7, sea: true },
+    { scale: 0.67, shadows: false, view: 36, fx: 0.7, sea: true },
+    { scale: 0.58, shadows: false, view: 30, fx: 0.4, sea: false },
+    { scale: 0.5, shadows: false, view: 26, fx: 0.4, sea: false }
+  ];
+  const nav = window.navigator || {}, isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(nav.userAgent || '') || ((nav.maxTouchPoints || 0) > 1 && Math.min(window.screen.width, window.screen.height) < 900);
+  const gfx = Object.assign({ preset: 'auto', aa: true, fpsCap: 0, showFps: false, power: 'high-performance', autoLvl: -1, v: 2 }, PRESETS.high);
+  try { const s = JSON.parse(localStorage.getItem(GFX_KEY)); if (s) { Object.assign(gfx, s); if (s.v !== 2) { gfx.preset = 'auto'; gfx.autoLvl = -1; gfx.v = 2; } } } catch (e) { /* defaults */ }
   const saveGfx = () => { try { localStorage.setItem(GFX_KEY, JSON.stringify(gfx)); } catch (e) { /* ignore */ } };
-  const bootGfx = { aa: gfx.aa, power: gfx.power }; // these two only take effect when the renderer is created
-  const renderer = new T.WebGLRenderer({ canvas, antialias: gfx.aa, logarithmicDepthBuffer: true, powerPreference: gfx.power });
-  renderer.setPixelRatio(clamp((window.devicePixelRatio || 1) * gfx.scale, 0.4, 3));
+  const isAuto = () => gfx.preset === 'auto';
+  const useAA = () => (isAuto() ? !(isMobile && (window.devicePixelRatio || 1) >= 2) : gfx.aa); // on a dense phone screen MSAA costs a lot and shows little
+  const bootGfx = { aa: useAA(), power: gfx.power }; // these two only take effect when the renderer is created
+  const renderer = new T.WebGLRenderer({ canvas, antialias: bootGfx.aa, logarithmicDepthBuffer: true, powerPreference: gfx.power, stencil: false });
+  const auto = { lvl: 0, n: 0, t: 0, low: 0, ok: 0, hold: 0, backoff: 20, wait: 3, from: -1 };
+  const eff = () => (isAuto() ? LADDER[auto.lvl] : gfx); // the settings actually in force
+  // device pixels per CSS pixel: Auto never renders above 2x (a 3x phone screen is nine times the work of 1x for no visible gain)
+  const pxRatio = () => (isAuto() ? Math.max(0.5, Math.min(window.devicePixelRatio || 1, 2) * eff().scale) : clamp((window.devicePixelRatio || 1) * gfx.scale, 0.4, 3));
+  renderer.setPixelRatio(pxRatio());
   renderer.toneMapping = T.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.8;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap;
   g.renderer = renderer; g.hctx = hudC.getContext('2d');
@@ -119,24 +136,38 @@
   function gpuName() {
     try { const gl = renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info'); return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : 'Unknown'; } catch (e) { return 'Unknown'; }
   }
+  // pick the starting rung for Auto from what the browser says about the device
+  function autoStart() {
+    if (gfx.autoLvl >= 0 && gfx.autoLvl < LADDER.length) return gfx.autoLvl; // what worked last time
+    const gpu = gpuName(), cores = nav.hardwareConcurrency || 4, mem = nav.deviceMemory || 4;
+    if (/swiftshader|llvmpipe|software|basic render/i.test(gpu)) return 5;
+    if (isMobile) return /Apple/i.test(gpu) ? 2 : cores >= 8 && mem >= 6 ? 3 : 4;
+    if (/nvidia|geforce|rtx|gtx|radeon rx|radeon pro|arc\(tm\) a|apple m/i.test(gpu)) return 0;
+    if (/intel|uhd|iris|mali|adreno|powervr/i.test(gpu)) return cores >= 8 ? 2 : 3;
+    return cores >= 8 ? 1 : 2;
+  }
   function applyGfx() {
-    renderer.setPixelRatio(clamp((window.devicePixelRatio || 1) * gfx.scale, 0.4, 3)); resize();
-    sun.castShadow = !!gfx.shadows;
-    g.fogBase = 0.000042 * clamp(46 / gfx.view, 0.6, 1.7);
-    if (g.world) { g.world.cullDist = gfx.view * 1000; if (g.world.seaU) g.world.seaU.amp.value = gfx.sea ? 1 : 0; }
-    if (G.fx) G.fx.quality = gfx.fx;
+    const E = eff();
+    if (Math.abs(renderer.getPixelRatio() - pxRatio()) > 1e-3) renderer.setPixelRatio(pxRatio());
+    resize();
+    sun.castShadow = !!E.shadows;
+    g.fogBase = 0.000042 * clamp(46 / E.view, 0.6, 1.7);
+    if (g.world) { g.world.cullDist = E.view * 1000; if (g.world.seaU) g.world.seaU.amp.value = E.sea ? 1 : 0; }
+    if (G.fx) G.fx.quality = E.fx;
     $('fps').classList.toggle('hidden', !gfx.showFps);
   }
   function syncGfxUI() {
-    $('gPreset').value = gfx.preset; $('gScale').value = Math.round(gfx.scale * 100); $('gScaleV').textContent = Math.round(gfx.scale * 100) + '%';
-    $('gView').value = gfx.view; $('gViewV').textContent = gfx.view + ' km'; $('gFx').value = Math.round(gfx.fx * 100); $('gFxV').textContent = Math.round(gfx.fx * 100) + '%';
-    $('gShadows').checked = gfx.shadows; $('gSea').checked = gfx.sea; $('gAA').checked = gfx.aa; $('gFpsCap').value = String(gfx.fpsCap); $('gShowFps').checked = gfx.showFps; $('gPower').value = gfx.power;
+    const E = eff();
+    $('gPreset').value = gfx.preset; $('gScale').value = Math.round(E.scale * 100); $('gScaleV').textContent = Math.round(E.scale * 100) + '%';
+    $('gView').value = E.view; $('gViewV').textContent = E.view + ' km'; $('gFx').value = Math.round(E.fx * 100); $('gFxV').textContent = Math.round(E.fx * 100) + '%';
+    $('gShadows').checked = E.shadows; $('gSea').checked = E.sea; $('gAA').checked = bootGfx.aa && useAA();
+    $('gAuto').textContent = isAuto() ? 'Auto is holding ' + Math.min(60, gfx.fpsCap || 60) + ' FPS by adjusting resolution and detail. Now on step ' + (auto.lvl + 1) + ' of ' + LADDER.length + (auto.lvl ? '' : ' (full detail)') + '. Moving any slider below switches to Custom.' : 'Fixed settings. Choose Auto to let the game adjust itself to this device.'; $('gFpsCap').value = String(gfx.fpsCap); $('gShowFps').checked = gfx.showFps; $('gPower').value = gfx.power;
     $('gGpu').textContent = gpuName();
-    $('gReload').classList.toggle('hidden', gfx.aa === bootGfx.aa && gfx.power === bootGfx.power);
+    $('gReload').classList.toggle('hidden', useAA() === bootGfx.aa && gfx.power === bootGfx.power);
     const px = renderer.getDrawingBufferSize(new T.Vector2()); $('gRes').textContent = px.x + ' × ' + px.y + ' pixels';
   }
-  function setGfx(k, v, custom) { gfx[k] = v; if (custom) gfx.preset = 'custom'; saveGfx(); applyGfx(); syncGfxUI(); }
-  $('gPreset').onchange = (e) => { const p = PRESETS[e.target.value]; if (p) Object.assign(gfx, p); gfx.preset = e.target.value; saveGfx(); applyGfx(); syncGfxUI(); };
+  function setGfx(k, v, custom) { if ((custom || k === 'aa') && isAuto()) { Object.assign(gfx, LADDER[auto.lvl], { aa: bootGfx.aa }); gfx.preset = 'custom'; } gfx[k] = v; if (custom) gfx.preset = 'custom'; saveGfx(); applyGfx(); syncGfxUI(); }
+  $('gPreset').onchange = (e) => { const p = PRESETS[e.target.value]; if (p) Object.assign(gfx, p); gfx.preset = e.target.value; if (isAuto()) { auto.lvl = autoStart(); auto.wait = 3; auto.low = auto.ok = 0; } saveGfx(); applyGfx(); syncGfxUI(); };
   $('gScale').oninput = (e) => setGfx('scale', +e.target.value / 100, true);
   $('gView').oninput = (e) => setGfx('view', +e.target.value, true);
   $('gFx').oninput = (e) => setGfx('fx', +e.target.value / 100, true);
@@ -1064,7 +1095,7 @@
     } else if (g.state === 'dead') { g.deadT += dt; g.camYaw += dt * 0.15; g.impact = null; }
 
     updateBombs(dt); updateThreats(dt); updateTraffic(dt); updateNaval(dt); updateBlimps(dt); updateMission(dt); updateRush(dt); updateLanding(dt);
-    w.lodK = (g.H || 1080) * (window.devicePixelRatio || 1) * gfx.scale / 1080 * 0.5774 / Math.tan(camera.fov * 0.008727); // pixels per metre against 1080p at 60°
+    w.lodK = (g.H || 1080) * renderer.getPixelRatio() / 1080 * 0.5774 / Math.tan(camera.fov * 0.008727); // pixels per metre against 1080p at 60°
     w.update(dt, camera.position); syncModel(dt); updateCamera(dt); fx.update(dt, camera.position);
     const cockpit = g.view === 1 && g.state === 'fly';
     _a.copy(camera.position).sub(f.pos).normalize();
@@ -1092,11 +1123,39 @@
   }
   const hPose = { gear: 1, flaps: 0, brake: 0, pitch: 0, roll: 0, yaw: 0, alpha: 0, onGround: true, V: 0, rpm: 0, ab: 0, throttle: 0, steer: 0, decel: 0, bump: 0, brakeTemp: 15, gearTarget: 1, flapsTarget: 0, nz: 0.2 };
   let last = performance.now(), fpsN = 0, fpsT = performance.now(), navT = 0;
+  function setAutoLvl(l) { auto.lvl = l; auto.low = auto.ok = 0; auto.wait = 2.5; gfx.autoLvl = l; saveGfx(); applyGfx(); if (!$('settings').classList.contains('hidden')) syncGfxUI(); }
+  // Auto quality controller, run once a frame with the real time since the last one
+  const hz = []; let pauseR = 0, dtS = 1 / 60;
+  function autoTune(raw) {
+    if (g.state === 'hangar' && hz.length < 90 && raw < 0.1) { // the hangar is light enough to run at the screen's refresh rate: learn it
+      hz.push(raw); if (hz.length === 90) { const m = hz.slice(20).sort((a, b) => a - b)[35], f = 1 / m; auto.refresh = f > 45 ? [50, 60, 72, 75, 90, 100, 120, 144, 165, 240].reduce((a, b) => (Math.abs(b - f) < Math.abs(a - f) ? b : a)) : 60; }
+    }
+    if (!isAuto() || g.state !== 'fly') { auto.n = 0; auto.t = 0; return; }
+    if (raw > 0.4) { auto.n = 0; auto.t = 0; auto.wait = Math.max(auto.wait, 1); return; } // tab switch or a one-off hitch: not the device's steady speed
+    if (auto.wait > 0) { auto.wait -= raw; return; }
+    auto.n++; auto.t += raw; if (auto.t < 1) return;
+    const fps = auto.n / auto.t, tgt = Math.min(60, auto.refresh || 60, gfx.fpsCap || 60); auto.n = 0; auto.t = 0; auto.hold -= 1; auto.fps = fps;
+    if (fps < tgt * 0.85) {
+      auto.ok = 0; auto.low++;
+      if ((auto.low >= 2 || fps < tgt * 0.55) && auto.lvl < LADDER.length - 1) {
+        const to = Math.min(LADDER.length - 1, auto.lvl + (fps < tgt * 0.5 ? 2 : 1));
+        if (auto.from === auto.lvl + 1) auto.backoff = Math.min(300, auto.backoff * 2); // it was tried one rung up and could not hold: wait longer before trying again
+        auto.from = -1; auto.hold = auto.backoff; setAutoLvl(to);
+      }
+    } else if (fps >= tgt * 0.96) {
+      auto.low = 0; auto.ok++;
+      if (auto.ok >= 8 && auto.hold <= 0 && auto.lvl > 0) { auto.from = auto.lvl; setAutoLvl(auto.lvl - 1); }
+    } else { auto.low = 0; auto.ok = 0; }
+  }
   function frame(now) {
     requestAnimationFrame(frame);
     if (gfx.fpsCap > 0 && now - last < 1000 / gfx.fpsCap - 1.5) return; // frame limiter
-    const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    fpsN++; if (now - fpsT >= 500) { if (gfx.showFps) $('fps').textContent = Math.round(fpsN * 1000 / (now - fpsT)) + ' FPS · ' + renderer.info.render.calls + ' draws · ' + (renderer.info.render.triangles / 1e6).toFixed(2) + 'M tris'; fpsN = 0; fpsT = now; }
+    const raw = (now - last) / 1000; last = now;
+    // frame pacing: the display's own timing jitters by a millisecond or two; feeding that straight into the simulation
+    // makes motion shimmer, so small variations are smoothed out and only real changes in frame time pass through
+    let dt = Math.min(0.05, raw); dtS = Math.abs(dt - dtS) < 0.004 ? dtS + (dt - dtS) * 0.2 : dt; dt = dtS;
+    autoTune(raw);
+    fpsN++; if (now - fpsT >= 500) { if (gfx.showFps) $('fps').textContent = Math.round(fpsN * 1000 / (now - fpsT)) + ' FPS · ' + renderer.info.render.calls + ' draws · ' + (renderer.info.render.triangles / 1e6).toFixed(2) + 'M tris · ' + renderer.getPixelRatio().toFixed(2) + 'x' + (isAuto() ? ' · auto ' + (auto.lvl + 1) + '/' + LADDER.length : ''); fpsN = 0; fpsT = now; }
     navT += dt; const nt = navT % 1.3; // navigation lights: strobe flashes, beacon pulses
     G.navMats.white.visible = nt < 0.07 || (nt > 0.18 && nt < 0.25); G.navMats.beacon.visible = (navT % 1.0) < 0.5;
     if (g.state === 'hangar') {
@@ -1113,7 +1172,7 @@
       }
       renderer.render(hs, hcam);
     } else if (g.state === 'fly' || g.state === 'dead') { update(dt); renderWorld(); }
-    else if (g.state === 'pause') renderWorld();
+    else if (g.state === 'pause') { if (now - pauseR > 250) { pauseR = now; renderWorld(); } } // nothing moves while paused: redraw four times a second, not sixty
   }
 
   // ---------- boot
@@ -1122,6 +1181,7 @@
     g.world = new G.World(scene);
     spawnTraffic(); spawnNaval(); spawnBlimps();
     scene.traverse((o) => { if (o.isLight) o.layers.enable(1); }); // the cockpit pass (layer 1) is lit by the same lights
+    if (isAuto()) auto.lvl = autoStart();
     applyGfx();
     renderer.compile(scene, camera); // build every shader now, so none is compiled mid-flight (that is what causes first-look stutter)
     $('loading').classList.add('hidden');
