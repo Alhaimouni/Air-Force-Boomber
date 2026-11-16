@@ -37,6 +37,29 @@
     const ms = new T.Mesh(g, mat); ms.userData.prof = { p: profile, sx, sy, seg };
     return ms;
   }
+  // a body lofted through cross-sections [z, halfWidth, yTop, yBottom]; each section is a superellipse (n = 2 is an
+  // ellipse, higher is boxier), so the top and bottom lines can run independently: drooped noses, upswept tails
+  function loft(st, mat, n, seg) {
+    const K = seg || 28, pos = [], idx = [], ex = 2 / (n || 2.3);
+    st.forEach((q) => { const hw = Math.max(q[1], 0.01), yc = (q[2] + q[3]) / 2, hh = Math.max((q[2] - q[3]) / 2, 0.01);
+      for (let k = 0; k < K; k++) { const a = k / K * Math.PI * 2, c = Math.cos(a), sn = Math.sin(a); pos.push(Math.sign(c) * Math.pow(Math.abs(c), ex) * hw, yc + Math.sign(sn) * Math.pow(Math.abs(sn), ex) * hh, q[0]); } });
+    for (let i = 0; i < st.length - 1; i++) for (let k = 0; k < K; k++) { const a = i * K + k, b = i * K + (k + 1) % K, c = a + K, d = b + K; idx.push(a, b, c, b, d, c); }
+    const cap = (i, flip) => { const q = st[i], o = pos.length / 3; pos.push(0, (q[2] + q[3]) / 2, q[0]); for (let k = 0; k < K; k++) { const a = i * K + k, b = i * K + (k + 1) % K; if (flip) idx.push(o, b, a); else idx.push(o, a, b); } };
+    cap(0, true); cap(st.length - 1, false);
+    const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+    return new T.Mesh(g, mat);
+  }
+  // a panel lying on a lofted body: the part of its skin between z0..z1 and angles a0..a1 (0 = right side, 90° = top),
+  // lifted a few centimetres clear. Used for glazing that has to follow the hull.
+  function skinPatch(st, n, z0, z1, a0, a1, mat, lift) {
+    const ex = 2 / (n || 2.3), NZ = 6, NA = 14, pos = [], idx = [], k = 1 + (lift || 0.012);
+    const at2 = (z) => { let i = 0; while (i < st.length - 2 && st[i + 1][0] < z) i++; const A = st[i], B = st[i + 1], t = clamp((z - A[0]) / (B[0] - A[0]), 0, 1); return [A[1] + (B[1] - A[1]) * t, A[2] + (B[2] - A[2]) * t, A[3] + (B[3] - A[3]) * t]; };
+    for (let i = 0; i <= NZ; i++) { const z = z0 + (z1 - z0) * i / NZ, q = at2(z), yc = (q[1] + q[2]) / 2, hh = (q[1] - q[2]) / 2;
+      for (let j = 0; j <= NA; j++) { const a = (a0 + (a1 - a0) * j / NA) * Math.PI / 180, c = Math.cos(a), sn = Math.sin(a); pos.push(Math.sign(c) * Math.pow(Math.abs(c), ex) * q[0] * k, yc + Math.sign(sn) * Math.pow(Math.abs(sn), ex) * hh * k, z); } }
+    for (let i = 0; i < NZ; i++) for (let j = 0; j < NA; j++) { const a = i * (NA + 1) + j, b = a + 1, c = a + NA + 1, d = c + 1; idx.push(a, b, c, b, d, c); }
+    const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+    return new T.Mesh(g, mat);
+  }
   function blob(sx, sy, sz, mat) {
     const g = new T.SphereGeometry(1, 20, 14); g.scale(sx, sy, sz);
     return new T.Mesh(g, mat);
@@ -156,7 +179,7 @@
         const wg = new T.CylinderGeometry(r, r, r * 0.55, 16); wg.rotateZ(Math.PI / 2);
         (dbl ? [-r * 0.45, r * 0.45] : [0]).forEach((q) => { const w = new T.Mesh(wg, M.tire); w.position.set(x + q, -s.gearH + r, z); g.add(w); });
       };
-      mk0(0, noseZ, wr * 0.75, twin); mk0(track, mainZ, wr, twin); mk0(-track, mainZ, wr, twin);
+      (o.noseXs || [0]).forEach((nx) => mk0(nx, noseZ, wr * 0.75, twin)); (o.mainZs || [0]).forEach((dz) => { mk0(track, mainZ + dz, wr, twin); mk0(-track, mainZ + dz, wr, twin); });
       return;
     }
     ud.legs = []; ud.oleoD = wr * 0.42; ud.gearArm = Math.abs(noseZ - mainZ);
@@ -203,8 +226,9 @@
       }
       ud.legs.push({ root, piv, steer, low, fold, nose, x, L, r, doors, wheels, phase });
     };
-    mk(0, noseZ, wr * 0.75, twin, true, -0.06);
-    mk(track, mainZ, wr, twin, false, 0.0); mk(-track, mainZ, wr, twin, false, 0.05);
+    // noseXs: side-by-side nose legs; mainZs: a row of main legs down each side (the An-225 has seven)
+    (o.noseXs || [0]).forEach((nx, i) => mk(nx, noseZ, wr * 0.75, twin, true, -0.06 + i * 0.03));
+    (o.mainZs || [0]).forEach((dz, i) => { mk(track, mainZ + dz, wr, twin, false, (i % 3) * 0.02); mk(-track, mainZ + dz, wr, twin, false, 0.01 + (i % 3) * 0.02); });
   }
 
   function addFlames(model, engines, r, len) {
@@ -532,27 +556,48 @@
       addGear(m, s, -9.5, 3.2, 2.4, 0.42, -0.8, false, { main: 'fwd', nose: 'aft' });
       m.userData.core = core; return m;
     },
-an225(s) { // high wing, six podded turbofans, a long tailplane carrying a fin on each tip, nose that hinges up for cargo
+an225(s) {
+      // Shaped after the real aircraft: a deep fuselage with a blunt drooped nose that hinges up, a flat top line and an upswept
+      // tail; a high, strongly swept wing with anhedral and a kinked trailing edge; six turbofans slung forward on pylons;
+      // a dihedral tailplane with a fin on each tip; gear in long blisters low on the sides.
       const m = new T.Group(), core = new T.Group(); m.add(core);
-      const b = std(0xe9ecee, 0.3, 0.45), b2 = std(0xc4c9ce, 0.4, 0.45), blue = std(0x1c4fa0, 0.3, 0.5), yel = std(0xf2c81e, 0.3, 0.5), wy = 3.0;
-      core.add(fus([[-42, 0], [-41.2, 1.1], [-39, 2.3], [-35, 3.1], [-28, 3.3], [16, 3.3], [28, 2.5], [37, 1.6], [42, 0.9]], 1, 1.06, b, 24));
-      both(m, at(box(0.06, 0.5, 62, blue), 3.27, 0.5, -4)); both(m, at(box(0.06, 0.28, 62, yel), 3.29, 0.05, -4)); // cheat line down each side
-      ctl(m, 1, [[3.0, -10.5], [44.2, 3.5], [44.2, 7.6], [3.0, 4.0]], 0.95, b, [TE(2.6, [[0.03, 0.34, 'flap', 0.6], [0.37, 0.66, 'flap', 0.6], [0.7, 0.97, 'ail', 0.35]], 0.35), LE(1.0, [[0.06, 0.96, 'slat', 0.3]], 0.4)], PL(0, wy, 0, -0.03), true, { plates: [[24, 2.6, 9, 1.4, 0.33, 0, 'spoilr']] });
-      core.add(at(fus([[-9, 0.6], [-6, 1.5], [6, 1.5], [10, 0.5]], 2.3, 0.7, b, 14), 0, wy + 0.35, -3)); // wing-root fairing
-      ctl(m, 1, [[1.0, 33.5], [16.3, 37.8], [16.3, 41.0], [1.0, 41.0]], 0.5, b, [TE(1.4, [[0.05, 0.95, 'elevTE', 0.35]], 0.3)], PL(0, 2.0, 0), true);
-      ctl(m, 0, [[34.6, -3.6], [36.4, 7.2], [39.8, 7.2], [41.6, -3.6]], 0.4, b, [{ e: 2, c: 1.5, segs: [[0.08, 0.92, 'rud', 0.4]] }], PL(16.3, 2.0, 0), true);
-      both(m, at(fus([[-5, 0.4], [-3, 1.3], [16, 1.3], [20, 0.5]], 1.1, 1, b2, 12), 4.3, -2.6, -2)); // main-gear fairings
+      const b = std(0xeef0f2, 0.25, 0.42), b2 = std(0xc9ced3, 0.4, 0.42), blue = std(0x1c4fa0, 0.3, 0.5), yel = std(0xf2c81e, 0.3, 0.5), hot = std(0x6a6e73, 0.8, 0.4);
+      const wy = 3.25, an = 0.07, wyAt = (x) => wy - x * an;                       // wing height, anhedral
+      const le = (x) => -14 + (x - 3) * 25 / 41.2, te = (x) => (x < 14 ? 2.0 + (x - 3) * 2.8 / 11 : 4.8 + (x - 14) * 10.4 / 30.2);
+      const hull = [[-42, 0.15, -0.7, -1.1], [-41.5, 1.0, 0.1, -1.9], [-40.6, 1.75, 0.95, -2.6], [-39.2, 2.4, 1.85, -3.1], [-37.2, 2.95, 2.75, -3.4], [-34.5, 3.22, 3.3, -3.5], [-31, 3.3, 3.5, -3.5],
+        [8, 3.3, 3.5, -3.5], [16, 3.2, 3.5, -3.2], [23, 2.9, 3.48, -2.3], [30, 2.4, 3.4, -1.0], [36, 1.75, 3.25, 0.5], [40, 1.1, 3.1, 1.7], [42, 0.55, 2.95, 2.3]];
+      core.add(loft(hull, b, 2.5, 32));
+      [[0.72, 0.58, blue], [0.16, 0.3, yel]].forEach((q) => both(m, at(box(0.06, q[1], 47, q[2]), 3.285, q[0], -9.5)));   // blue-over-yellow cheat line
+      // wing: root chord 16 m, kink at a third of the span, 4 m at the tip
+      ctl(m, 1, [[3.0, -14], [44.2, 11.0], [44.2, 15.2], [14, 4.8], [3.0, 2.0]], 0.85, b, [
+        { e: 2, c: 2.1, taper: 0.4, segs: [[0.04, 0.46, 'flap', 0.6], [0.52, 0.96, 'ail', 0.35]] }, { e: 3, c: 3.2, taper: 0.12, segs: [[0.1, 0.96, 'flap', 0.6]] },
+        LE(1.1, [[0.05, 0.3, 'slat', 0.3], [0.33, 0.62, 'slat', 0.3], [0.65, 0.97, 'slat', 0.3]], 0.45)], PL(0, wy, 0, -an), true, { plates: [[21, 3.6, 8, 1.5, 0.33, 0, 'spoilr'], [32, 7.4, 8, 1.3, 0.33, 0, 'spoilr']] });
+      core.add(loft([[-17.5, 2.2, 3.5, 3.1], [-14.5, 3.5, 4.35, 2.6], [-6, 3.7, 4.6, 2.6], [2, 3.5, 4.35, 2.6], [7, 2.2, 3.6, 3.1]], b, 2.6, 24));       // centre-section fairing over the fuselage
+      [7.5, 17, 25.5, 34, 40.5].forEach((x) => both(m, at(fus([[-3.2, 0.08], [-1.4, 0.4], [1.6, 0.42], [3.6, 0.08]], 1, 1.1, b, 10), x, wyAt(x) - 0.78, te(x) - 1.3)));   // flap-track fairings
+      // tail: dihedral tailplane, a swept fin on each tip, two-piece rudders
+      const ty = 2.75, td = 0.1;
+      ctl(m, 1, [[1.2, 30.6], [16.3, 36.6], [16.3, 41.4], [1.2, 40.6]], 0.55, b, [TE(1.6, [[0.05, 0.48, 'elevTE', 0.35], [0.52, 0.95, 'elevTE', 0.35]], 0.3)], PL(0, ty, 0, td), true);
+      const fy = ty + 16.3 * td;
+      ctl(m, 0, [[35.2, -2.0], [38.6, 9.2], [42.0, 9.2], [42.8, -2.0]], 0.42, b, [{ e: 2, c: 1.5, taper: 0.15, segs: [[0.06, 0.5, 'rud', 0.4], [0.53, 0.94, 'rud', 0.4]] }], PL(16.2, fy, 0), true);
+      [[5.3, 0.55, blue, 4.6], [4.72, 0.3, yel, 4.9]].forEach((q) => both(m, at(box(0.46, q[1], q[3], q[2]), 16.2, fy + q[0], 39.45)));                         // fin flash
+      both(m, at(loft([[-13, 0.2, -2.6, -3.0], [-10, 1.0, -1.9, -3.5], [-6, 1.35, -1.7, -3.62], [10, 1.35, -1.7, -3.62], [14, 1.0, -1.9, -3.5], [18, 0.2, -2.6, -3.0]], b, 2.6, 16), 3.75, 0, 1.5)); // main-gear blisters
+      // six D-18T turbofans: a short fan cowl, a slimmer hot core behind it, hung ahead of the wing on a swept pylon
       const eng = [];
-      [13.5, 22.5, 31.5].forEach((x) => {
-        const z = -10.5 + (x - 3) * 0.34 - 2.2, y = wy - x * 0.03 - 2.5;
-        both(m, at(fus([[-3.3, 1.15], [-2.9, 1.4], [0.6, 1.4], [1.2, 1.0], [3.4, 0.75]], 1, 1, b2, 16), x, y, z));
-        both(m, at(cyl(1.2, 1.2, 0.12, M.dark), x, y, z - 3.3)); both(m, at(box(0.35, 1.7, 4.4, b), x, y + 1.5, z + 1.2));
-        eng.push([x, y, z + 3.6], [-x, y, z + 3.6]);
+      [12.2, 20.8, 29.4].forEach((x) => {
+        const y = wyAt(x) - 2.75, z = le(x) - 2.4;
+        both(m, at(fus([[-3.1, 1.16], [-2.85, 1.4], [-1.2, 1.47], [0.2, 1.4], [0.7, 1.22]], 1, 1, b, 18), x, y, z));
+        both(m, at(fus([[-2.3, 1.485], [-1.75, 1.49]], 1, 1, blue, 18), x, y, z)); both(m, at(fus([[-1.7, 1.49], [-1.45, 1.485]], 1, 1, yel, 18), x, y, z));
+        both(m, at(cyl(1.15, 1.15, 0.1, M.dark), x, y, z - 2.9)); both(m, at(fus([[-3.5, 0], [-2.9, 0.42]], 1, 1, b, 10), x, y, z));
+        both(m, at(fus([[0.5, 0.98], [2.3, 0.82], [2.9, 0.62]], 1, 1, hot, 14), x, y, z)); both(m, at(fus([[2.7, 0.5], [4.1, 0.05]], 1, 1, hot, 10), x, y, z));
+        both(m, at(fin([[-1.9, 1.35], [1.2, 2.55], [5.4, 2.55], [2.6, 0.9]], 0.34, b), x, y, z));
+        eng.push([x, y, z + 4.0], [-x, y, z + 4.0]);
       });
-      const ws = at(blob(2.3, 0.75, 1.5, M.window), 0, 2.75, -37.4); ws.userData.fpHide = true; core.add(ws);
-      m.userData.engines = eng; m.userData.tips = [[44, wy - 1.3, 6.5], [-44, wy - 1.3, 6.5]];
+      // flight-deck glazing wrapped round the upper nose, with a row of side windows behind it
+      [[-39.75, -38.5, 40, 140], [-38.42, -37.3, 22, 50], [-38.42, -37.3, 130, 158]].forEach((q) => { const ws = skinPatch(hull, 2.5, q[0], q[1], q[2], q[3], M.window); ws.userData.fpHide = true; core.add(ws); });
+      [[-39.75, -38.5, 88.6, 91.4], [-39.75, -38.5, 63, 65], [-39.75, -38.5, 115, 117]].forEach((q) => { const fr = skinPatch(hull, 2.5, q[0], q[1], q[2], q[3], b, 0.02); fr.userData.fpHide = true; core.add(fr); });   // window posts
+      m.userData.engines = eng; m.userData.tips = [[44, wyAt(44) - 0.1, 14], [-44, wyAt(44) - 0.1, 14]];
       m.userData.flames = [];
-      addGear(m, s, -30, 3, 3.4, 0.62, -3.3, true, { main: 'fwd', bogie: true });
+      addGear(m, s, -33.5, -5.5, 4.05, 0.62, -3.35, true, { main: 'in', nose: 'fwd', noseXs: [-1.0, 1.0], mainZs: [0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0] });
       m.userData.core = core; return m;
     },
     rocket(s) { // lies along -Z like the aircraft; the flight model stands it upright
