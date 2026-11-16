@@ -75,13 +75,16 @@
       x.strokeRect(align === 'r' ? bx : bx - w, by - 15, w, 30); x.textAlign = 'center'; x.fillText(txt, align === 'r' ? bx + w / 2 : bx - w / 2, by + 1);
       x.font = '13px Consolas, monospace';
     };
-    const rk = !!g.spec.rocket, hiAlt = f.pos.y > 30000;
-    boxed(lx, cy, String(Math.round(rk ? f.V : f.ias * G.KTS)), 'l');
+    const rk = !!g.spec.rocket, car = !!g.spec.car, hiAlt = f.pos.y > 30000;
+    boxed(lx, cy, String(Math.round(car ? f.V * 3.6 : rk ? f.V : f.ias * G.KTS)), 'l');
     x.textAlign = 'right';
-    x.fillText(rk ? 'M/S' : 'KIAS', lx, cy - 26);
-    x.fillText('M ' + f.mach.toFixed(2), lx, cy + 28);
-    x.fillText('G ' + f.nz.toFixed(1), lx, cy + 46);
-    x.fillText('AOA ' + (f.alpha * 57.3).toFixed(0) + '°', lx, cy + 64);
+    x.fillText(car ? 'KM/H' : rk ? 'M/S' : 'KIAS', lx, cy - 26);
+    if (car) x.fillText(f.speed < -0.3 ? 'REVERSE' : f.brake > 0.2 ? 'BRAKE' : f.surface === 'paved' ? 'ROAD' : 'OFF-ROAD', lx, cy + 28);
+    else {
+      x.fillText('M ' + f.mach.toFixed(2), lx, cy + 28);
+      x.fillText('G ' + f.nz.toFixed(1), lx, cy + 46);
+      x.fillText('AOA ' + (f.alpha * 57.3).toFixed(0) + '°', lx, cy + 64);
+    }
     boxed(rx, cy, hiAlt ? (f.pos.y / 1000).toFixed(1) : String(Math.round(f.pos.y * G.FT / 10) * 10), 'r');
     x.textAlign = 'left';
     x.fillText(hiAlt ? 'ALT KM' : 'ALT FT', rx, cy - 26);
@@ -109,7 +112,7 @@
     if (f.ab > 0.05) { x.fillStyle = AMBER; x.fillRect(bx + 2, by + 2, 10, 106 * 0.1 * f.ab); x.fillStyle = GREEN; }
     let ly = by + 6; const line = (t, c) => { x.fillStyle = c || GREEN; x.fillText(t, bx + 26, ly); ly += 19; };
     line('THR ' + thr + '%' + (f.ab > 0.5 ? '  AB' : ''), f.ab > 0.5 ? AMBER : GREEN);
-    if (!spec.rocket) { // systems: gear lights, flap position, speed brake / wheel brakes
+    if (!spec.rocket && !spec.car) { // systems: gear lights, flap position, speed brake / wheel brakes
       const sx = bx, sy = by - 66, st = G.smoothstep, blinkS = (performance.now() % 400) < 240;
       x.font = '12px Consolas, monospace'; x.lineWidth = 1.4;
       x.fillStyle = GREEN; x.fillText('GEAR', sx, sy + 14);
@@ -160,6 +163,7 @@
     }
     if (g.audioTransonic > 0.25) { x.font = 'bold 15px Consolas, monospace'; warnTxt('TRANSONIC BUFFET', AMBER); }
     if (f.onGround && f.V < 3 && f.throttle < 0.05 && g.time < 12 && g.spec.rocket) { x.font = '15px Consolas, monospace'; warnTxt('Hold SHIFT to ignite · W/S pitch · A/D yaw · Q/E roll · Z cuts the engines', GREEN); }
+    else if (g.spec.car) { if (f.V < 1 && g.time < 12) { x.font = '15px Consolas, monospace'; warnTxt('W / ↑ drive · S / ↓ brake, then reverse · A / D steer · B handbrake · V driver view', GREEN); } }
     else if (f.onGround && f.V < 3 && f.throttle < 0.05 && g.time < 12) { x.font = '15px Consolas, monospace'; warnTxt('Hold SHIFT for throttle · pull back [S / ↓] at rotation speed · H = help', GREEN); }
     x.fillStyle = GREEN; x.font = '13px Consolas, monospace';
 
@@ -219,6 +223,7 @@
     if (range >= 30000) { x.fillStyle = '#e8edf2'; x.font = '10px Consolas, monospace'; x.textAlign = 'center'; G.CITIES.forEach((ct) => { if (ct.town) return; x.save(); x.translate((ct.x - f.pos.x) * ppm, (ct.z - f.pos.z) * ppm); x.rotate(-yaw); x.fillText(ct.name, 0, -8); x.restore(); }); }
     g.traffic.forEach((t) => { if (t.model.visible) dot(t.model.position.x, t.model.position.z, '#ffffff', 2); });
     g.missiles.forEach((m) => dot(m.pos.x, m.pos.z, '#ffe04a', 2.5));
+    (g.blimps || []).forEach((b) => { if (b.alive) dot(b.m.position.x, b.m.position.z, '#ffd24a', 3); });
     (g.subs || []).forEach((s) => { if (s.alive && s.depth < 0.6) dot(s.m.position.x, s.m.position.z, s.friendly ? '#4ad8ff' : '#ff8a3a', 2.6); });
     x.fillStyle = '#e8edf2'; x.fillRect((G.CARRIER.x - f.pos.x) * ppm - 2, (G.CARRIER.z - 166 - f.pos.z) * ppm, 4, Math.max(6, 332 * ppm));
     if (g.impact) dot(g.impact.x, g.impact.z, AMBER, 2);
