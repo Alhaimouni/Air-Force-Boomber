@@ -47,13 +47,14 @@
       this.mesh = new T.Points(g, this.mat); this.mesh.frustumCulled = false; this.mesh.renderOrder = additive ? 6 : 5;
     }
     spawn(x, y, z, vx, vy, vz, life, s0, s1, r, g, b, a, drag, grav) {
-      const i = this.next; this.next = (i + 1) % this.n;
+      const i = this.next; this.next = (i + 1) % this.n; this.live = true;
       this.pos[i * 3] = x; this.pos[i * 3 + 1] = y; this.pos[i * 3 + 2] = z; this.vel[i * 3] = vx; this.vel[i * 3 + 1] = vy; this.vel[i * 3 + 2] = vz;
       this.life[i] = this.max[i] = life; this.s0[i] = s0; this.s1[i] = s1;
       this.base[i * 4] = r; this.base[i * 4 + 1] = g; this.base[i * 4 + 2] = b; this.base[i * 4 + 3] = a;
       this.drag[i] = drag || 0; this.grav[i] = grav || 0;
     }
     update(dt) {
+      if (!this.live) return; // nothing has been spawned since the last particle died
       const p = this.pos, v = this.vel, c = this.col, b = this.base; let alive = 0;
       for (let i = 0; i < this.n; i++) {
         if (this.life[i] <= 0) { if (this.size[i] !== 0) this.size[i] = 0; continue; }
@@ -70,7 +71,7 @@
         else { c[q] = b[q]; c[q + 1] = b[q + 1]; c[q + 2] = b[q + 2]; c[q + 3] = b[q + 3] * Math.min(1, k * 10) * (1 - k) * (1 - k * 0.4); }
       }
       if (alive || this.alive) { this.geo.attributes.position.needsUpdate = true; this.geo.attributes.pcolor.needsUpdate = true; this.geo.attributes.size.needsUpdate = true; }
-      this.mesh.visible = alive > 0; this.alive = alive;
+      this.mesh.visible = alive > 0; if (!alive && !this.alive) this.live = false; this.alive = alive;
     }
   }
 

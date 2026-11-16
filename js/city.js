@@ -11,6 +11,10 @@
   const sphere = new T.SphereGeometry(1, 20, 12), hemi = new T.SphereGeometry(1, 20, 8, 0, Math.PI * 2, 0, Math.PI / 2),
     cone = new T.ConeGeometry(1, 1, 12), torus = new T.TorusGeometry(1, 0.022, 6, 48), halfCyl = new T.CylinderGeometry(1, 1, 1, 14, 1, false, 0, Math.PI),
     ico = new T.IcosahedronGeometry(1, 1);
+  // lighter meshes for small copies (a 2 m dish or bush does not need 400 triangles)
+  sphere.userData.lo = new T.SphereGeometry(1, 8, 5); sphere.userData.mid = new T.SphereGeometry(1, 13, 8);
+  hemi.userData.lo = new T.SphereGeometry(1, 8, 3, 0, Math.PI * 2, 0, Math.PI / 2); hemi.userData.mid = new T.SphereGeometry(1, 13, 5, 0, Math.PI * 2, 0, Math.PI / 2);
+  cone.userData.lo = new T.ConeGeometry(1, 1, 7);
   let R; // current rng
   const fc = (cw, ch, st) => [cw, ch, st, Math.floor(R() * 90)];
   const pc = (arr) => C(R.pick(arr));
@@ -493,14 +497,15 @@
   // ---------- Jordan: limestone apartment blocks, villas, neighbourhood mosques and the country's landmarks
   const ubox = new T.BoxGeometry(1, 1, 1);
   const roofKit = (gb, x, h, z, ww, dd) => { // what every Amman roof carries: parapet, stair room, water tanks, solar heater, dish
-    const col = C(0xe6dcc6);
+    const col = C(0xe6dcc6), was = gb.fine; gb.fine = 1;
     gb.box(x, h, z - dd / 2 + 0.2, ww, 0.9, 0.4, col); gb.box(x, h, z + dd / 2 - 0.2, ww, 0.9, 0.4, col);
     gb.box(x - ww / 2 + 0.2, h, z, 0.4, 0.9, dd, col); gb.box(x + ww / 2 - 0.2, h, z, 0.4, 0.9, dd, col);
-    gb.box(x + ww * 0.22, h, z - dd * 0.2, 3.4, 2.7, 4, col, null, C(0xbfb5a0));
+    gb.fine = 0; gb.box(x + ww * 0.22, h, z - dd * 0.2, 3.4, 2.7, 4, col, null, C(0xbfb5a0)); gb.fine = 1;
     const n = R.int(2, 4);
     for (let i = 0; i < n; i++) { const tx = x - ww * 0.3 + i * 2.4, tz = z + dd * 0.22; gb.box(tx, h, tz, 1.5, 1.3, 1.5, C(0x8a8c8e)); gb.cyl(tx, h + 1.3, tz, 0.85, 1.5, 8, C(R.chance(0.8) ? 0xf2f2ee : 0x2c2c2c)); }
     if (R.chance(0.7)) gb.add(ubox, x - ww * 0.15, h + 1.1, z - dd * 0.22, 2.6, 0.12, 1.7, C(0x1f2c44), 0.6, 0, 0);
     if (R.chance(0.6)) gb.add(hemi, x + ww * 0.05, h + 1.2, z + dd * 0.05, 0.8, 0.35, 0.8, C(0xd8d8d8), 2.2, 0, 0.4);
+    gb.fine = was;
   };
   lows.ammanApt = function (gb, w, d) { // rows of four- to six-storey white limestone apartment buildings
     const alongX = w >= d, len = alongX ? w : d, n = R.int(3, 4), step = len / n;

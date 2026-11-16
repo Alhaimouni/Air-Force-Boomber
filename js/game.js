@@ -32,7 +32,7 @@
   renderer.setPixelRatio(clamp((window.devicePixelRatio || 1) * gfx.scale, 0.4, 3));
   renderer.toneMapping = T.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.8;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap;
-  g.hctx = hudC.getContext('2d');
+  g.renderer = renderer; g.hctx = hudC.getContext('2d');
   const scene = new T.Scene(); scene.fog = new T.FogExp2(0xa9c3dc, 0.000042);
   const camera = g.camera = new T.PerspectiveCamera(60, 1, 0.5, 3e7);
   const sky = G.makeSky(); sky.scale.setScalar(120); scene.add(sky);
@@ -112,6 +112,7 @@
     const W = g.W = window.innerWidth, H = g.H = window.innerHeight, dpr = Math.min(window.devicePixelRatio || 1, 2);
     renderer.setSize(W, H, false); camera.aspect = hcam.aspect = W / H; camera.updateProjectionMatrix(); hcam.updateProjectionMatrix();
     hudC.width = W * dpr; hudC.height = H * dpr; g.hctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    hudC.style.filter = 'drop-shadow(0 0 ' + (1.5 / dpr).toFixed(2) + 'px rgba(0,0,0,0.7))';
   }
   window.addEventListener('resize', resize); resize();
 
@@ -516,8 +517,14 @@
   // ---------- other air traffic: high-altitude routes, city overflights, airport arrivals and departures
   function spawnTraffic() {
     const r = G.rng(555), a320 = G.aircraftById('a320'), CT = G.CITY;
+    // traffic never moves its control surfaces, so each one is baked down to a few meshes; only the gear and the flames stay separate
+    const bake = (m) => {
+      const ud = m.userData, gear = ud.gear && ud.gear.isObject3D ? ud.gear : null; G.flattenModel(m, [gear].concat(ud.flames || [])); if (gear) G.flattenModel(gear, []);
+      const nm = G.navMats, nav = [], rest = []; m.traverse((o) => { (o.isMesh && (o.material === nm.red || o.material === nm.green || o.material === nm.white || o.material === nm.beacon) ? nav : rest).push(o); });
+      ud.lod = { nav, rest, s: 2 }; return m;
+    };
     const add = (spec, cx, cz, R, alt, speed, phase, dir, livery) => {
-      const model = G.buildAircraft(spec, { noCockpit: true, livery, lights: true }); if (model.userData.gear) model.userData.gear.visible = false; scene.add(model);
+      const model = bake(G.buildAircraft(spec, { noCockpit: true, livery, lights: true })); if (model.userData.gear) model.userData.gear.visible = false; scene.add(model);
       g.traffic.push({ kind: 'circle', model, spec, cx, cz, R, alt, speed, phase, dir });
     };
     const pair = (id, cx, cz, R, alt, speed, ph, dir) => { const spec = G.aircraftById(id); add(spec, cx, cz, R, alt, speed, ph, dir); add(spec, cx, cz, R + 60, alt - 15, speed * (R + 60) / R, ph - dir * 0.012, dir); };
@@ -534,7 +541,7 @@
     G.CITIES.forEach((ct, i) => { if (i && !ct.town) { add(a320, ct.x, ct.z, ct.r + 2200, 1500, 150, i, i % 2 ? 1 : -1, i % 5); pair(['typhoon', 'rafale', 'f16', 'mig29', 'su27'][i % 5], ct.x, ct.z, ct.r + 900, 800, 200, i * 1.3, i % 2 ? -1 : 1); } });
     G.AIRPORTS.forEach((ap, i) => {
       (types[i] || ['a320', 'a320']).forEach((id, k) => {
-        const spec = G.aircraftById(id), model = G.buildAircraft(spec, { noCockpit: true, lights: true, livery: (i * 3 + k) % 5 }); model.visible = false; scene.add(model);
+        const spec = G.aircraftById(id), model = bake(G.buildAircraft(spec, { noCockpit: true, lights: true, livery: (i * 3 + k) % 5 })); model.visible = false; scene.add(model);
         g.traffic.push({ kind: 'ap', model, spec, ap, mode: k % 2 === 1 ? 'depart' : 'land', phase: 'wait', wait: 2 + k * 24 + i * 6, s: 0, v: 0, alt: 0, xoff: 0, yaw: 0, pitch: 0 });
       });
     });
@@ -601,6 +608,10 @@
         G.fx.explosion(m.position, 40, camera.position); f.crash('Collision with another aircraft');
         if (t.kind === 'ap') { t.phase = 'wait'; t.wait = 60; m.visible = false; } else t.alt = -500;
       }
+      // an aircraft too far away to cover a pixel is not drawn, and its marker lights only show close in (layer 3 is never rendered)
+      const L = m.userData.lod;
+      if (L && m.visible) { const d = m.position.distanceTo(camera.position), k = g.world.lodK || 1, st = d > t.spec.span * 1300 * k ? 0 : d > 2500 * k ? 1 : 2;
+        if (st !== L.s) { L.s = st; for (let i = 0; i < L.rest.length; i++) L.rest[i].layers.set(st ? 0 : 3); for (let i = 0; i < L.nav.length; i++) L.nav[i].layers.set(st === 2 ? 0 : 3); } }
     });
   }
 
@@ -1010,20 +1021,23 @@
     } else if (g.state === 'dead') { g.deadT += dt; g.camYaw += dt * 0.15; g.impact = null; }
 
     updateBombs(dt); updateThreats(dt); updateTraffic(dt); updateNaval(dt); updateMission(dt); updateRush(dt); updateLanding(dt);
+    w.lodK = (g.H || 1080) * (window.devicePixelRatio || 1) * gfx.scale / 1080 * 0.5774 / Math.tan(camera.fov * 0.008727); // pixels per metre against 1080p at 60°
     w.update(dt, camera.position); syncModel(dt); updateCamera(dt); fx.update(dt, camera.position);
     const cockpit = g.view === 1 && g.state === 'fly';
     _a.copy(camera.position).sub(f.pos).normalize();
     G.audio.update({ rpm: f.rpm, ab: f.ab, V: f.V, mach: f.mach, cockpit, rear: _a.dot(_fwd.set(0, 0, 1).applyQuaternion(f.q)), active: g.state === 'fly', gearMove: g.gearMove, flapMove: g.flapMove, buffet: g.buffet, air: cockpit ? Math.max(0.5, Math.min(1, G.atmosphere(f.pos.y).rho / 0.25)) : Math.min(1, G.atmosphere(f.pos.y).rho / 0.25) }, dt);
     g.audioTransonic = g.state === 'fly' ? (G.audio.ctx ? G.audio.transonic || 0 : Math.exp(-Math.pow((f.mach - 1) / 0.055, 2))) : 0;
     if (G.audio.boomed) { G.audio.boomed = false; msg('SONIC BOOM — Mach 1', 'big'); fx.shake = Math.max(fx.shake, 0.6); }
-    $('flash').style.opacity = clamp(fx.flash, 0, 1);
+    setOp(elFlash, clamp(fx.flash, 0, 1));
     const gl = f.nz > 7 ? (f.nz - 7) / 3 : f.nz < -2 ? (-2 - f.nz) / 2 : 0;
     g.vig = (g.vig || 0) + (clamp(gl, 0, 0.92) - (g.vig || 0)) * Math.min(1, dt * 1.5);
-    $('vig').style.opacity = g.state === 'fly' ? g.vig : 0;
+    setOp(elVig, g.state === 'fly' ? g.vig : 0);
     if (g.state === 'fly') { G.drawHUD(g); panelT -= dt; if (cockpit && panelT <= 0) { panelT = 0.1; G.drawPanel(g); } }
     else g.hctx.clearRect(0, 0, g.W, g.H);
   }
 
+  // overlay opacities are only written when they actually change, so an idle overlay costs no style work
+  const elVig = $('vig'), elFlash = $('flash'), setOp = (el, v) => { v = Math.round(v * 200) / 200; if (el._op !== v) { el._op = v; el.style.opacity = v; } };
   function renderWorld() {
     renderer.render(scene, camera);
     const cp = g.model && g.model.userData.cockpit;
@@ -1039,7 +1053,7 @@
     requestAnimationFrame(frame);
     if (gfx.fpsCap > 0 && now - last < 1000 / gfx.fpsCap - 1.5) return; // frame limiter
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    fpsN++; if (now - fpsT >= 500) { if (gfx.showFps) $('fps').textContent = Math.round(fpsN * 1000 / (now - fpsT)) + ' FPS'; fpsN = 0; fpsT = now; }
+    fpsN++; if (now - fpsT >= 500) { if (gfx.showFps) $('fps').textContent = Math.round(fpsN * 1000 / (now - fpsT)) + ' FPS · ' + renderer.info.render.calls + ' draws · ' + (renderer.info.render.triangles / 1e6).toFixed(2) + 'M tris'; fpsN = 0; fpsT = now; }
     navT += dt; const nt = navT % 1.3; // navigation lights: strobe flashes, beacon pulses
     G.navMats.white.visible = nt < 0.07 || (nt > 0.18 && nt < 0.25); G.navMats.beacon.visible = (navT % 1.0) < 0.5;
     if (g.state === 'hangar') {
@@ -1066,6 +1080,7 @@
     spawnTraffic(); spawnNaval();
     scene.traverse((o) => { if (o.isLight) o.layers.enable(1); }); // the cockpit pass (layer 1) is lit by the same lights
     applyGfx();
+    renderer.compile(scene, camera); // build every shader now, so none is compiled mid-flight (that is what causes first-look stutter)
     $('loading').classList.add('hidden');
     toHangar();
     requestAnimationFrame(frame);
