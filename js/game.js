@@ -202,7 +202,7 @@
     const bars = [['Top speed', s.machLimit / 2.35, 'Mach ' + s.machLimit], ['Thrust / weight', tw / 1.25, tw.toFixed(2)], ['Agility', s.rollRate / 4.2 * 0.6 + s.maxG / 9 * 0.4, s.maxG + ' g'],
       ['Mass', s.mass / 150000, (s.mass / 1000).toFixed(1) + ' t'], ['Wingspan', s.span / 52.4, s.span.toFixed(1) + ' m']];
     $('hBars').innerHTML = bars.map((b) => `<div class="bar"><span>${b[0]}</span><i><b style="width:${clamp(b[1], 0.03, 1) * 100}%"></b></i><em>${b[2]}</em></div>`).join('');
-    $('hWeapons').innerHTML = s.weapons.length ? s.weapons.map((w) => `<li>${w.count} × ${G.WEAPONS[w.type].name}</li>`).join('') + (s.flares ? `<li>${s.flares} × flares</li>` : '') : s.car ? '<li>No weapons — drive the runways, the highways and the city streets</li>' : s.id === 'sr71' ? '<li>Unarmed reconnaissance — outruns what it cannot fight</li><li>' + s.flares + ' × flares</li>' : '<li>Unarmed — earns money by landing safely</li>';
+    $('hWeapons').innerHTML = s.weapons.length ? s.weapons.map((w) => `<li>${w.count} × ${G.WEAPONS[w.type].name}</li>`).join('') + (s.flares ? `<li>${s.flares} × flares</li>` : '') : s.id === 'an225' ? '<li>Unarmed — 250 t of cargo; earns money by landing safely</li>' : s.id === 'sr71' ? '<li>Unarmed reconnaissance — outruns what it cannot fight</li><li>' + s.flares + ' × flares</li>' : '<li>Unarmed — earns money by landing safely</li>';
     const own = owns(s.id);
     $('hPrice').textContent = own ? 'In your hangar' : 'Price ' + G.money(s.price);
     $('btnBuy').style.display = own ? 'none' : ''; $('btnBuy').disabled = save.money < s.price;
@@ -220,8 +220,9 @@
   const opts = (list, sel) => list.map((o) => `<option value="${o[0]}"${String(o[0]) === String(sel) ? ' selected' : ''}>${o[1]}</option>`).join('');
   function paintUI() {
     const s = G.AIRCRAFT[hIdx], p = paintOf(s.id), air = s.id === 'a320';
-    $('paintBox').classList.toggle('hidden', !!s.rocket || !!s.car);
-    if (s.rocket || s.car) return;
+    const noPaint = !!s.rocket || (s.civil && s.id !== 'a320'); // civil types other than the airliner fly in their own colours
+    $('paintBox').classList.toggle('hidden', noPaint);
+    if (noPaint) return;
     const sc = air ? null : (G.PAINTS.find((q) => q.id === p.scheme) || G.PAINTS[0]);
     $('pScheme').innerHTML = air ? opts(G.LIVERIES.map((n, i) => [i, n + ' livery']), p.livery || 0) : opts(G.PAINTS.map((q) => [q.id, q.name]), sc.id);
     $('pCustom').classList.toggle('hidden', air || sc.id !== 'custom');
@@ -248,21 +249,19 @@
     G.audio.init(); G.audio.setAircraft(s);
     if (g.model) scene.remove(g.model);
     g.model = G.buildAircraft(s, { paint: paintOf(s.id) }); scene.add(g.model);
-    g.flight = s.rocket ? new G.RocketFlight(s) : s.car ? new G.CarDrive(s) : new G.Flight(s);
-    const atCity = !!s.car && air; // the car's "air start" is the edge of the chosen city
-    if (s.rocket || s.car) air = false;
+    g.flight = s.rocket ? new G.RocketFlight(s) : new G.Flight(s);
+    if (s.rocket) air = false;
     const ct = g.targetCity = g.forceCity || G.CITIES[save.startCity] || G.CITIES[0]; g.forceCity = null;
     g.defence = g.mode === 'free' ? save.defence : g.mode === 'rush' ? save.rDef : false;
     if (air) g.flight.reset(new V3(ct.x, 1800, ct.z + (ct.rz || ct.r) + 7000), 0, Math.min(230, s.machLimit * 300));
     const apIdx = g.forceAp != null ? g.forceAp : save.startAp; g.forceAp = null;
     let ap = g.homeAp = G.AIRPORTS[apIdx] || G.AIRPORTS[0];
     const CV = G.CARRIER; let fromCarrier = !air && apIdx === G.AIRPORTS.length;
-    if (s.rocket || s.car) fromCarrier = false;
+    if (s.rocket) fromCarrier = false;
     if (fromCarrier && s.span > 22) { fromCarrier = false; g.tooBig = true; } else g.tooBig = false;
     g.cat = fromCarrier;
     if (fromCarrier) { ap = g.homeAp = CV; g.flight.reset(new V3(CV.x - 4, CV.deckY + s.gearH, CV.z - 30), 0, 0); }
     else if (s.rocket) { ap = g.homeAp = G.PAD; g.flight.reset(new V3(G.PAD.x, s.gearH, G.PAD.z)); g.spaceDone = false; g.moonNear = false; g.moonLanded = false; }
-    else if (atCity) { const p0 = new V3(ct.x, s.gearH, ct.z + (ct.rz || ct.r) * 0.55); for (let k = 0; k < 60 && g.world.collide(p0, 5); k++) p0.x += 6; g.flight.reset(p0, 0, 0); } // find a clear bit of street
     else if (!air) g.flight.reset(new V3(ap.x, s.gearH, ap.z + 1650), 0, 0);
     g.ammo = s.weapons.map((w) => ({ def: G.WEAPONS[w.type], count: w.count, max: w.count })); g.weaponIdx = 0; g.flares = s.flares;
     g.state = 'fly'; g.time = 0; g.sortie = 0; g.hasFlown = !!air; g.view = 0; g.camYaw = 0; g.camPitch = 0; g.zoom = 1; g.dropT = 0; g.flareT = 0; g.passT = 0; g.deadT = 0;
@@ -272,10 +271,10 @@
     clearMission(); g.diff = diffFor(curLevel()); g.flakT = 3; g.flakBursts = [];
     $('hangar').classList.add('hidden'); $('summary').classList.add('hidden'); $('pause').classList.add('hidden'); $('flightUI').classList.remove('hidden');
     refreshMoney();
-    if (!quiet) msg(s.name + (air ? ' — air start, ' + ct.name + ' is 7 km ahead' : (s.rocket ? ' — on the pad at the Space Center. Hold Shift to ignite; the Moon is high to the north-east' : s.car ? (atCity ? ' — in ' + ct.name : ' — on the runway at ' + ap.name) + '. W/S drive and brake, A/D steer, B handbrake' : fromCarrier ? ' — on the catapult. Full throttle to launch' : ' — cleared for take-off, ' + ap.name + ' runway 36')), '');
+    if (!quiet) msg(s.name + (air ? ' — air start, ' + ct.name + ' is 7 km ahead' : (s.rocket ? ' — on the pad at the Space Center. Hold Shift to ignite; the Moon is high to the north-east' : fromCarrier ? ' — on the catapult. Full throttle to launch' : ' — cleared for take-off, ' + ap.name + ' runway 36')), '');
     if (g.tooBig) msg(s.name + ' is too large for the carrier — starting at ' + ap.name, 'bad');
     if (g.mode === 'free' && !g.defence && !s.civil) msg('City air defence is switched off', '');
-    if (!air && !s.car) $('help').classList.remove('hidden');
+    if (!air) $('help').classList.remove('hidden');
   }
   g.assistLevel = () => save.assist;
   g.currentWeapon = () => (g.ammo && g.ammo.length ? g.ammo[g.weaponIdx] : null);
@@ -296,7 +295,6 @@
     if (e.code === 'KeyH') $('help').classList.toggle('hidden');
     if (g.state !== 'fly') return;
     const f = g.flight;
-    if (g.spec.car && (e.code === 'KeyG' || e.code === 'KeyF')) return;
     if (e.code === 'KeyG') { if (f.onGround) msg('Gear stays down on the ground'); else if (!g.spec.rocket) { f.gearTarget = f.gearTarget ? 0 : 1; G.audio.clunk(); msg('Gear ' + (f.gearTarget ? 'coming down' : 'retracting') + (f.gearTarget && f.ias * G.KTS > f.vle ? ' — above the ' + f.vle + ' kt gear limit' : ''), f.gearTarget && f.ias * G.KTS > f.vle ? 'bad' : ''); } }
     if (e.code === 'KeyF' && !g.spec.rocket) { // three flap settings: up -> take-off -> landing
       f.flapsTarget = f.flapsTarget >= 1 ? 0 : f.flapsTarget + 0.5;
@@ -337,7 +335,7 @@
   $('pPat').onchange = (e) => setPaint('pat', e.target.value);
   $('pC1').onchange = (e) => setPaint('c1', e.target.value); $('pC2').onchange = (e) => setPaint('c2', e.target.value);
   $('pFinish').onchange = (e) => setPaint('finish', e.target.value); $('pGlass').onchange = (e) => setPaint('glass', e.target.value);
-  $('btnTest').onclick = () => { if (!G.AIRCRAFT[hIdx].car) hTest = 0; };
+  $('btnTest').onclick = () => { hTest = 0; };
   $('sandbox').onchange = (e) => { save.sandbox = e.target.checked; persist(); showHangarAircraft(); };
   $('defence').onchange = (e) => { save.defence = e.target.checked; persist(); modeUI(); };
   $('startAp').innerHTML = G.AIRPORTS.map((a, i) => `<option value="${i}">${a.name}</option>`).join('') + `<option value="${G.AIRPORTS.length}">${G.CARRIER.name} (at sea)</option>`;
@@ -369,7 +367,7 @@
     $('lWhere').innerHTML = landSites().map((n, i) => `<option value="${i}">${n}</option>`).join(''); $('lWhere').value = String(save.lWhere); $('lDist').value = String(save.lDist);
     let brief = '', best = '', why = '';
     if (md === 'free') {
-      brief = save.freeStart === 'air' ? (s.car ? `Start in the streets of ${(G.CITIES[save.startCity] || G.CITIES[0]).name}.` : `Start in the air 7 km from ${(G.CITIES[save.startCity] || G.CITIES[0]).name}.`) : `${s.car ? 'Drive off from' : 'Take off from'} ${landSites()[save.startAp] || landSites()[0]}.`;
+      brief = save.freeStart === 'air' ? `Start in the air 7 km from ${(G.CITIES[save.startCity] || G.CITIES[0]).name}.` : `Take off from ${landSites()[save.startAp] || landSites()[0]}.`;
       brief += ' No objectives: explore, bomb, land where you like. ' + (save.defence ? 'Missile sites will shoot at armed aircraft.' : 'Air defence is off.');
     } else if (md === 'mission') {
       const L = curLevel(), d = diffFor(L), cs = missionCities(L, save.mCities), n = cs.length;
@@ -385,7 +383,6 @@
     }
     if (!own) why = 'Buy this aircraft first, or switch on Sandbox';
     else if (s.rocket && md !== 'free') why = 'The rocket only flies in Free flight';
-    else if (s.car && md !== 'free') why = 'The car only drives in Free flight mode';
     else if ((md === 'mission' || md === 'rush') && (s.civil || !s.weapons.length)) why = 'This mode needs an armed aircraft';
     else if (md === 'landing' && save.lWhere === G.AIRPORTS.length && s.span > 22) why = 'This aircraft is too large for the carrier';
     $('mBrief').textContent = brief; $('modeBest').textContent = best;
@@ -657,30 +654,32 @@
     const c = G.CARRIER;
     mk(c.x - 300, c.z, 1300, true, 0.6); mk(13500, -11000, 1800, false, 2.1); mk(15500, 45500, 1700, false, 4.0); mk(33000, 14000, 2200, false, 5.2);
   }
-  // ---------- airships drifting over the desert: a low group at 900-2600 m and a high group at 5500-9500 m
-  function spawnBlimps() {
-    g.blimps = []; const r = G.rng(808), by = (n) => G.CITIES.find((c) => c.name === n) || G.CITIES[0];
-    const cols = [[0xe9ecee, 0xc8102e], [0xd9b02a, 0x1c2d52], [0x1c4fa0, 0xe9ecee], [0xc8102e, 0xe9ecee], [0x2f8f6a, 0xf2ecdc], [0xb8bcc2, 0x15171a]];
-    const mk = (cx, cz, R, alt, i) => { const m = G.buildBlimp(cols[i % cols.length][0], cols[i % cols.length][1]); scene.add(m); g.blimps.push({ m, cx, cz, R, alt, a: r() * 6.283, dir: i % 2 ? 1 : -1, sp: r.range(9, 15), bob: r() * 6, alive: true }); };
-    const A = by('Amman'), Z = by('Zarqa'), P = by('Petra'), Md = by('Madaba'), I = by('Irbid');
-    // mid altitude
-    mk(A.x, A.z, A.r + 900, 950, 0); mk(A.x + 600, A.z - 400, 2200, 1500, 1); mk(Z.x, Z.z, Z.r + 1400, 1250, 2); mk(P.x - 1500, P.z, 3200, 1700, 3); mk(-42500, 41800, 5200, 2100, 4); mk(-58400, 39200, 2600, 1100, 5); mk(Md.x, Md.z, 3000, 2600, 0); mk(I.x, I.z, 3600, 1900, 2);
-    // high altitude
-    mk(A.x, A.z + 1500, 7000, 6200, 5); mk(-47000, 44000, 11000, 8200, 1); mk(P.x, P.z - 2000, 6500, 5600, 4); mk(Z.x + 2000, Z.z + 3000, 9000, 9400, 3); mk(-30000, 46000, 9500, 7400, 0); mk(-10000, 47000, 12000, 8800, 2);
+  // ---------- a fleet of fifteen big hot-air balloons drifting together over the Jordanian desert, each at its own height
+  function spawnBalloons() {
+    g.balloons = []; const r = G.rng(1508), pos = [];
+    const schemes = [[0xc8102e, 0xf2ecdc], [0x1c4fa0, 0xf2c81e], [0xf28c1e, 0x6a1e8a], [0x1f8f5a, 0xf2ecdc, 0xc8102e], [0xf2c81e, 0xc8102e, 0x1c4fa0, 0x1f8f5a], [0x12a5b5, 0xf2ecdc], [0xd0246a, 0xf2c81e], [0x2a2d31, 0xf28c1e],
+      [0xf2ecdc, 0x1c4fa0, 0xc8102e], [0x7a3fb0, 0xf2ecdc], [0xc8102e, 0xf2c81e], [0x1f8f5a, 0xf2c81e], [0x1c4fa0, 0xf2ecdc], [0xf28c1e, 0xf2ecdc, 0x2a2d31], [0xc8102e, 0x1c4fa0, 0xf2ecdc, 0xf2c81e]];
+    for (let i = 0; i < 15; i++) {
+      let ox = 0, oz = 0; for (let k = 0; k < 40; k++) { const a = r() * 6.283, d = Math.sqrt(r()) * 1200; ox = Math.cos(a) * d; oz = Math.sin(a) * d; if (!pos.some((q) => Math.hypot(q[0] - ox, q[1] - oz) < 230)) break; }
+      pos.push([ox, oz]);
+      const R = r.range(20, 28), m = G.buildBalloon(schemes[i], R); scene.add(m);
+      g.balloons.push({ m, R, ox, oz, alt: 420 + i * 165 + r.range(-60, 60), amp: r.range(50, 130), ph: r() * 6.283, w: r.range(0.02, 0.045), spin: r.range(-0.03, 0.03), burn: r() * 8, alive: true });
+    }
+    g.fleet = { cx: -47200, cz: 40600, R: 7200, a: 0.4, sp: 6.5 }; // the whole fleet rides the same wind, round Amman, Madaba and Queen Alia
   }
-  function updateBlimps(dt) {
-    const f = g.flight;
-    for (let i = 0; i < g.blimps.length; i++) {
-      const b = g.blimps[i]; if (!b.alive) continue;
-      b.a += b.dir * b.sp / b.R * dt; b.bob += dt * 0.25;
-      const c = Math.cos(b.a), s = Math.sin(b.a), m = b.m, hd = Math.atan2(s * b.dir, -c * b.dir);
-      m.position.set(b.cx + b.R * c, b.alt + Math.sin(b.bob) * 12, b.cz + b.R * s); m.rotation.set(Math.sin(b.bob * 1.7) * 0.02, hd, 0);
+  function updateBalloons(dt) {
+    const f = g.flight, F = g.fleet; F.a += F.sp / F.R * dt;
+    const fx0 = F.cx + Math.cos(F.a) * F.R, fz0 = F.cz + Math.sin(F.a) * F.R;
+    for (let i = 0; i < g.balloons.length; i++) {
+      const b = g.balloons[i]; if (!b.alive) continue;
+      b.ph += b.w * dt; b.burn -= dt; const m = b.m, fl = m.userData.flame;
+      m.position.set(fx0 + b.ox, b.alt + Math.sin(b.ph) * b.amp, fz0 + b.oz); m.rotation.y += b.spin * dt;
+      if (b.burn < -1.6) b.burn = 3 + Math.random() * 7; fl.visible = b.burn < 0; // the burner fires in bursts
       if (g.state !== 'fly' || f.crashed) continue;
-      const dx = f.pos.x - m.position.x, dy = f.pos.y - m.position.y, dz = f.pos.z - m.position.z; if (Math.abs(dx) > 60 || Math.abs(dy) > 40 || Math.abs(dz) > 60) continue;
-      const fwx = -Math.sin(hd), fwz = -Math.cos(hd), along = dx * fwx + dz * fwz, lat = dx * fwz - dz * fwx, rp = g.spec.span * 0.3;
-      if ((along / (31 + rp)) ** 2 + (lat / (9.6 + rp)) ** 2 + ((dy + 1.5) / (11.5 + rp)) ** 2 < 1) {
-        b.alive = false; m.visible = false; G.fx.explosion(m.position, 45, camera.position); G.audio.explosion(camera.position.distanceTo(m.position), 0.8); f.crash('Collided with an airship');
-      }
+      const dx = f.pos.x - m.position.x, dy = f.pos.y - m.position.y, dz = f.pos.z - m.position.z, rp = g.spec.span * 0.3, k = b.R / 13;
+      if (Math.abs(dx) > 80 || Math.abs(dz) > 80 || Math.abs(dy) > 90) continue;
+      const env = (dx * dx + dz * dz) / ((b.R + rp) * (b.R + rp)) + ((dy - k * -2) * (dy - k * -2)) / ((17 * k + rp) * (17 * k + rp)) < 1, basket = Math.hypot(dx, dz) < 3 * k + rp && dy < -14 * k && dy > -29 * k - rp;
+      if (env || basket) { b.alive = false; m.visible = false; G.fx.explosion(m.position, 40, camera.position); G.audio.explosion(camera.position.distanceTo(m.position), 0.7); f.crash('Collided with a hot-air balloon'); }
     }
   }
   function updateNaval(dt) {
@@ -887,18 +886,6 @@
     const cockpit = g.view === 1 && g.state === 'fly';
     if (ud.cockpit) ud.cockpit.visible = cockpit; if (ud.core) ud.core.visible = !cockpit; if (ud.fp) ud.fp.visible = cockpit;
     // drive every moving part from the flight state: gear legs and doors, flaps, slats, control surfaces, brakes, nozzles
-    if (g.spec.car) { // the car has none of the aircraft's moving parts: wheels, steering and brake lights only
-      m.position.copy(f.pos); m.quaternion.copy(f.q);
-      ud.wheels.forEach((wl) => { wl.w.rotation.x = -f.spin; if (wl.front) wl.piv.rotation.y = f.steer; });
-      ud.steerWheel.rotation.z = f.steer * 4; ud.brakeLamp.color.setHex(f.brake > 0.2 ? 0xff2a1a : 0x7a0c0c);
-      g.gearMove = g.flapMove = false; g.buffet = 0; g.gearWarn = false;
-      if (g.state !== 'fly') return;
-      const rear = (sd) => _a.set(sd * 0.82, -g.spec.gearH + 0.1, 1.35).applyQuaternion(f.q).add(f.pos);
-      if (f.slip > 0.45 && f.V > 6) { [1, -1].forEach((sd) => { const p = rear(sd); if (Math.random() < 0.6) fx.smoke.spawn(p.x, p.y, p.z, f.vel.x * 0.2, 0.8, f.vel.z * 0.2, 1.4, 0.7, 4, 0.86, 0.86, 0.88, 0.3, 0.9, 0); }); g.squealT -= dt; if (g.squealT <= 0) { g.squealT = 0.7; G.audio.squeal(); } }
-      if (f.surface !== 'paved' && f.V > 6 && Math.random() < 0.6) { const p = rear(Math.random() < 0.5 ? 1 : -1); fx.smoke.spawn(p.x, p.y, p.z, 0, 1.5, 0, 1.8, 1.2, 7, 0.62, 0.52, 0.38, 0.3, 0.5, 0); }
-      if (f.health < 60 && Math.random() < 0.5) { _a.set(0, 0.4, -1.6).applyQuaternion(f.q).add(f.pos); fx.darkTrail(_a.x, _a.y, _a.z, 1.2); }
-      return;
-    }
     const c = f.ctl || pose;
     pose.gear = f.gear; pose.flaps = f.flaps; pose.brake = f.brake; pose.pitch = f.ctl ? c.pitch : 0; pose.roll = f.ctl ? c.roll : 0; pose.yaw = f.ctl ? c.yaw : 0;
     pose.alpha = f.alpha; pose.onGround = f.onGround; pose.V = f.V; pose.rpm = f.rpm; pose.ab = f.ab; pose.throttle = f.throttle; pose.steer = clamp(pose.yaw + pose.roll * 0.6, -1, 1);
@@ -1060,8 +1047,7 @@
       f.events.length = 0;
       if (!f.crashed) {
         const hit = w.collide(f.pos, g.spec.span * 0.28);
-        if (hit && f.isCar && f.V < 16) { f.pos.addScaledVector(f.vel, -dt * 2); f.speed *= -0.3; fx.shake = Math.max(fx.shake, 0.25); if (Math.abs(f.speed) > 1.5) { G.audio.clunk(); hurt(Math.abs(f.speed) * 0.8, 'Wrecked the car'); } } // a slow bump only dents it
-        else if (hit) { f.crash((f.isCar ? 'Drove into ' : 'Flew into ') + (hit.name ? 'the ' + hit.name : 'a building')); w.blast(f.pos, f.isCar ? 12 : 30, f.isCar ? 0.3 : 0.8); }
+        if (hit) { f.crash('Flew into ' + (hit.name ? 'the ' + hit.name : 'a building')); w.blast(f.pos, 30, 0.8); }
       }
       if (g.spec.rocket && !f.crashed) {
         if (!g.spaceDone && f.pos.y > 100000) { g.spaceDone = true; earn(250000, 'Crossed the Kármán line — you are in space'); }
@@ -1085,7 +1071,7 @@
           const onRw = f.surface === 'paved' && G.AIRPORTS.some((a) => Math.abs(f.pos.x - a.x) < 600 && Math.abs(f.pos.z - a.z) < 1900);
           const onCv = w.onDeck(f.pos.x, f.pos.z);
           if (onCv) { earn(35000, 'Carrier landing'); f.health = 100; g.ammo.forEach((a) => { a.count = a.max; }); g.flares = g.spec.flares; g.cat = true; g.catFired = false; msg('Repaired and rearmed — full throttle to launch again', ''); }
-          else if (onRw) { earn(g.spec.civil ? 40000 : 12000, g.spec.civil ? 'Passengers delivered safely' : 'Safe landing'); f.health = 100; g.ammo.forEach((a) => { a.count = a.max; }); g.flares = g.spec.flares; msg('Aircraft repaired and rearmed', ''); }
+          else if (onRw) { earn(g.spec.civil ? (g.spec.id === 'an225' ? 90000 : 40000) : 12000, g.spec.id === 'an225' ? 'Cargo delivered safely' : g.spec.civil ? 'Passengers delivered safely' : 'Safe landing'); f.health = 100; g.ammo.forEach((a) => { a.count = a.max; }); g.flares = g.spec.flares; msg('Aircraft repaired and rearmed', ''); }
           else earn(3000, 'Off-field landing');
         }
         g.pullUp = !f.onGround && f.vel.y < -12 && f.agl / -f.vel.y < 4.5 && f.gear < 0.9;
@@ -1094,7 +1080,7 @@
       predT -= dt; if (predT <= 0) { predT = 0.05; predictImpact(); }
     } else if (g.state === 'dead') { g.deadT += dt; g.camYaw += dt * 0.15; g.impact = null; }
 
-    updateBombs(dt); updateThreats(dt); updateTraffic(dt); updateNaval(dt); updateBlimps(dt); updateMission(dt); updateRush(dt); updateLanding(dt);
+    updateBombs(dt); updateThreats(dt); updateTraffic(dt); updateNaval(dt); updateBalloons(dt); updateMission(dt); updateRush(dt); updateLanding(dt);
     w.lodK = (g.H || 1080) * renderer.getPixelRatio() / 1080 * 0.5774 / Math.tan(camera.fov * 0.008727); // pixels per metre against 1080p at 60°
     w.update(dt, camera.position); syncModel(dt); updateCamera(dt); fx.update(dt, camera.position);
     const cockpit = g.view === 1 && g.state === 'fly';
@@ -1163,7 +1149,7 @@
       const s = G.AIRCRAFT[hIdx], d = (Math.max(s.span, s.length) * 1.25 + 14) * hZoom;
       hcam.position.set(Math.sin(hAng) * Math.cos(hPitch) * d, s.gearH + 1 + Math.sin(hPitch) * d, Math.cos(hAng) * Math.cos(hPitch) * d);
       hcam.lookAt(0, s.gearH * 0.8, 0);
-      if (hTest >= 0 && hModel && !s.rocket && !s.car) { // control-surface test: flaps, air brakes, then a full stick and rudder sweep
+      if (hTest >= 0 && hModel && !s.rocket) { // control-surface test: flaps, air brakes, then a full stick and rudder sweep
         hTest += dt; const t = hTest, w = (a, b) => G.smoothstep(a, a + 1.2, t) * (1 - G.smoothstep(b, b + 1.2, t));
         hPose.flaps = w(0.2, 9.5); hPose.brake = w(2, 4.5); hPose.pitch = Math.sin(clamp(t - 5, 0, 3) * 2.094) * (t > 5 && t < 8 ? 1 : 0); hPose.roll = Math.sin(clamp(t - 6.5, 0, 3) * 2.094) * (t > 6.5 && t < 9.5 ? 1 : 0); hPose.yaw = hPose.roll; hPose.steer = hPose.yaw;
         hPose.rpm = w(1, 9) * 0.9; hPose.ab = w(3.5, 6.5);
@@ -1179,7 +1165,7 @@
   setTimeout(() => {
     G.fx = new G.FX(scene);
     g.world = new G.World(scene);
-    spawnTraffic(); spawnNaval(); spawnBlimps();
+    spawnTraffic(); spawnNaval(); spawnBalloons();
     scene.traverse((o) => { if (o.isLight) o.layers.enable(1); }); // the cockpit pass (layer 1) is lit by the same lights
     if (isAuto()) auto.lvl = autoStart();
     applyGfx();

@@ -244,14 +244,17 @@ window.G = {};
       stats: 'Mach 3.3 · 85,000 ft · unarmed · 2 × J58 turbo-ramjets'
     }
     ,{
-      id: 'car', name: 'Falcon GT Sports Car', role: 'Road car — drive it anywhere', origin: 'Jordan', price: 0, civil: true, car: true,
-      mass: 1500, S: 2, span: 2.0, length: 4.5, thrustDry: 0, thrustAB: 0,
-      vmax: 88, accel: 9.5, wheelbase: 2.7, track: 1.6, wheelR: 0.34,
-      maxG: 1.2, rollRate: 1, machLimit: 0.3, ceiling: 1e9, gearH: 0.34,
+      // the largest aircraft ever built: 88.4 m span, 84 m long, 640 t at take-off, six engines
+      id: 'an225', name: 'Antonov An-225 Mriya', role: 'Heaviest aircraft ever built (civil cargo)', origin: 'Ukraine', price: 1800000, civil: true,
+      mass: 450000, S: 905, span: 88.4, length: 84.0,
+      thrustDry: 1377000, thrustAB: 0, machThrust: -0.5,
+      CL0: 0.3, CLa: 5.4, alphaStall: 0.26, flapCL: 0.95, CD0: 0.02, k: 0.04, CDw: 0.09,
+      maxG: 2.0, minG: -0.8, rollRate: 0.24, pitchRate: 0.09, yawRate: 0.06, tauRoll: 0.9, tauPitch: 0.9,
+      qRef: 3000, machLimit: 0.72, ceiling: 11000, gearH: 4.6, maxRot: 0.12, sinkLimit: 4, spool: 0.26,
       weapons: [], flares: 0,
-      cam: { dist: 9.5, height: 5.5, cockpit: [-0.37, 0.68, 0.32] },
-      sound: { whine: [90, 520, 0.05, 'sawtooth'], roar: [240, 0.35], rumble: [70, 0.5], ab: 0 },
-      stats: '300 km/h · W/S drive and brake · A/D steer · B handbrake'
+      cam: { dist: 140, height: 26, cockpit: [-0.6, 3.5, -36.6] },
+      sound: { whine: [200, 640, 0.08, 'sawtooth'], roar: [440, 0.6], rumble: [85, 0.8], ab: 0 },
+      stats: '88.4 m span · 640 t · 6 × D-18T turbofans · 32 wheels'
     }
     ,{
       id: 'rocket', name: 'Artemis Moon Rocket', role: 'Space launch vehicle', origin: 'USA', price: 2000000, civil: true, rocket: true,
