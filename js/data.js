@@ -250,9 +250,9 @@ window.G = {};
       thrustDry: 1377000, thrustAB: 0, machThrust: -0.5,
       CL0: 0.3, CLa: 5.4, alphaStall: 0.26, flapCL: 0.95, CD0: 0.02, k: 0.04, CDw: 0.09,
       maxG: 2.0, minG: -0.8, rollRate: 0.24, pitchRate: 0.09, yawRate: 0.06, tauRoll: 0.9, tauPitch: 0.9,
-      qRef: 3000, machLimit: 0.72, ceiling: 11000, gearH: 4.6, maxRot: 0.12, sinkLimit: 4, spool: 0.26,
+      qRef: 3000, machLimit: 0.72, ceiling: 11000, gearH: 4.45, maxRot: 0.12, sinkLimit: 4, spool: 0.26,
       weapons: [], flares: 0,
-      cam: { dist: 140, height: 26, cockpit: [-0.6, 3.5, -36.6] },
+      cam: { dist: 140, height: 26, cockpit: [-0.6, 2.55, -36.9] },
       sound: { whine: [200, 640, 0.08, 'sawtooth'], roar: [440, 0.6], rumble: [85, 0.8], ab: 0 },
       stats: '88.4 m span · 640 t · 6 × D-18T turbofans · 32 wheels'
     }
