@@ -517,6 +517,53 @@
       addGear(m, s, -15, 4, 1.6, 0.65, -2.0, true, { main: 'fwd', bogie: true });
       m.userData.core = core; return m;
     },
+    sr71(s) { // long chined fuselage blended into a delta, an engine nacelle half-way out each wing with an inward-canted fin on top
+      const m = new T.Group(), core = new T.Group(); m.add(core);
+      const b = std(0x1b1d21, 0.35, 0.62), b2 = std(0x26292e, 0.35, 0.62);
+      core.add(fus([[-16.4, 0], [-16.1, 0.1], [-14, 0.42], [-11, 0.7], [-6, 0.84], [4, 0.86], [10, 0.7], [14, 0.42], [16.4, 0.1]], 1, 0.92, b, 20));
+      both(m, at(surf([[0.15, -15.9], [1.25, -11], [1.75, -5], [1.9, -1.2], [0.15, -1.2]], 0.16, b), 0, -0.05, 0)); // chines
+      ctl(m, 1, [[0.7, -2.2], [8.47, 8.4], [8.47, 10.4], [0.7, 12.9]], 0.26, b, [TE(1.2, [[0.03, 0.4, 'elevon', 0.4], [0.62, 0.97, 'elevon', 0.4]], 0.45)], PL(0, -0.05, 0), true);
+      both(m, at(fus([[-7.2, 0], [-5.6, 0.34], [-4.2, 0.72], [-3.2, 0.86], [3.5, 0.86], [5.6, 0.74]], 1, 1, b2, 18), 4.55, 0.05, 4.3)); // nacelles with inlet spikes
+      allMove(m, 0, [[5.2, 0.8], [7.6, 3.6], [8.9, 3.6], [9.4, 0.8]], 0.16, b2, 7.6, PL(4.55, 0.1, 0, 0.26), true, 'rud', 0.35);
+      canopy(core, 0.42, 0.42, 1.25, 0, 0.72, -11.1, true); canopy(core, 0.4, 0.38, 0.9, 0, 0.74, -9.1, false);
+      nozzle(m, 0.86, 0.7, 1.1, 4.55, 0.05, 10.3, true);
+      m.userData.engines = [[4.55, 0.05, 10.9], [-4.55, 0.05, 10.9]]; m.userData.tips = [[8.4, -0.05, 9.4], [-8.4, -0.05, 9.4]];
+      addFlames(m, m.userData.engines, 0.7, 11);
+      addGear(m, s, -9.5, 3.2, 2.4, 0.42, -0.8, false, { main: 'fwd', nose: 'aft' });
+      m.userData.core = core; return m;
+    },
+    car() { // origin at wheel-centre height, nose toward -Z like the aircraft
+      const m = new T.Group(), core = new T.Group(), np = (mat) => { mat.userData.noPaint = true; return mat; }; m.add(core);
+      const paint = np(std(0xc8102e, 0.55, 0.28)), dk = np(std(0x15171a, 0.4, 0.6)), glass = np(new T.MeshStandardMaterial({ color: 0x0c1116, metalness: 0.9, roughness: 0.08 })), rim = np(std(0xc9cdd2, 0.9, 0.3));
+      const slab = (pts, w, mat) => { const sh = new T.Shape(); pts.forEach((p, i) => (i ? sh.lineTo(p[0], p[1]) : sh.moveTo(p[0], p[1]))); const g = new T.ExtrudeGeometry(sh, { depth: w, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.05, bevelSegments: 2 }); g.rotateY(-Math.PI / 2); g.translate(w / 2, 0, 0); return new T.Mesh(g, mat); };
+      core.add(slab([[-2.2, -0.14], [-2.22, 0.08], [-1.65, 0.27], [-0.75, 0.36], [1.5, 0.43], [2.18, 0.46], [2.22, -0.14]], 1.8, paint));
+      core.add(slab([[-0.78, 0.36], [-0.15, 0.8], [0.8, 0.82], [1.55, 0.44]], 1.36, glass));
+      core.add(at(box(1.2, 0.05, 0.9, paint), 0, 0.86, 0.33));
+      core.add(at(box(1.7, 0.05, 0.32, paint), 0, 0.66, 2.02)); both(core, at(box(0.06, 0.2, 0.2, dk), 0.7, 0.55, 2.02)); // rear wing
+      core.add(at(box(1.5, 0.16, 0.06, dk), 0, 0.0, -2.26)); core.add(at(box(1.4, 0.14, 0.06, dk), 0, 0.02, 2.25));
+      const lampW = new T.MeshBasicMaterial({ color: 0xfff6d8 }), lampR = new T.MeshBasicMaterial({ color: 0x7a0c0c });
+      both(core, at(box(0.36, 0.09, 0.06, lampW), 0.66, 0.17, -2.21)); both(core, at(box(0.42, 0.09, 0.06, lampR), 0.62, 0.36, 2.26));
+      both(core, at(cyl(0.05, 0.05, 0.3, rim), 0.42, -0.08, 2.3));
+      const tyreG = new T.CylinderGeometry(0.34, 0.34, 0.26, 20); tyreG.rotateZ(Math.PI / 2);
+      const rimG = new T.CylinderGeometry(0.21, 0.21, 0.27, 12); rimG.rotateZ(Math.PI / 2);
+      const wheels = [];
+      [[0.82, -1.35, 1], [-0.82, -1.35, 1], [0.82, 1.35, 0], [-0.82, 1.35, 0]].forEach((p) => {
+        const piv = new T.Group(), w = new T.Group(); piv.position.set(p[0], 0, p[1]); piv.add(w); m.add(piv);
+        w.add(new T.Mesh(tyreG, M.tire), new T.Mesh(rimG, rim)); [0, 1, 2].forEach((k) => { const sp = box(0.28, 0.4, 0.05, dk); sp.rotation.x = k * Math.PI / 3; w.add(sp); });
+        wheels.push({ piv, w, front: !!p[2] });
+      });
+      // what the driver sees: bonnet, dashboard, wheel, screen pillars and the roof edge
+      const cp = new T.Group(), wheel = new T.Mesh(new T.TorusGeometry(0.15, 0.016, 8, 24), dk);
+      cp.add(at(box(1.74, 0.04, 1.5), 0, 0.33, -1.45)); cp.children[0].material = paint;
+      cp.add(at(box(1.5, 0.6, 0.42, dk), 0, 0.13, -0.52)); cp.add(at(box(0.3, 0.07, 0.12, dk), -0.37, 0.46, -0.42));
+      wheel.position.set(-0.37, 0.38, -0.2); wheel.rotation.x = -0.35; wheel.add(box(0.28, 0.025, 0.015, dk)); cp.add(wheel);
+      [1, -1].forEach((sd) => { const pl = box(0.045, 0.62, 0.045, dk); pl.position.set(sd * 0.69, 0.62, -0.5); pl.rotation.x = 0.95; cp.add(pl); });
+      cp.add(at(box(1.4, 0.03, 0.9, dk), 0, 0.86, 0.2)); cp.add(at(box(0.18, 0.05, 0.02, dk), 0, 0.81, -0.22));
+      cp.visible = false; m.add(cp);
+      m.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+      Object.assign(m.userData, { core, cockpit: cp, wheels, steerWheel: wheel, brakeLamp: lampR, engines: [[0.42, -0.08, 2.4], [-0.42, -0.08, 2.4]], tips: [], flames: [] });
+      return m;
+    },
     rocket(s) { // lies along -Z like the aircraft; the flight model stands it upright
       const m = new T.Group(), core = new T.Group(); m.add(core);
       const or = std(0xd8742a, 0.2, 0.6), wh = std(0xeeeeea, 0.3, 0.45), dk = std(0x2a2c30, 0.6, 0.5);
@@ -919,7 +966,7 @@
       }
       o.material = mat;
     });
-    if (spec.rocket || !lights) return;
+    if (spec.rocket || spec.car || !lights) return;
     const big = spec.span > 22, k = clamp(spec.span / 12, 0.8, 2.4), lg = new T.SphereGeometry(0.11 * k, 8, 6);
     if (ud.tips && ud.tips.length >= 2) {
       const r = new T.Mesh(lg, G.navMats.green); r.position.set(ud.tips[0][0], ud.tips[0][1], ud.tips[0][2] - 0.6); m.add(r);
@@ -1038,8 +1085,8 @@
     m.traverse((o) => { if (o.isMesh && !(o.material.blending === T.AdditiveBlending)) { o.castShadow = true; } });
     decorate(m, spec, opt);
     m.traverse((o) => { if (o.isMesh && o.material && (o.material === G.navMats.red || o.material === G.navMats.green || o.material === G.navMats.white || o.material === G.navMats.beacon)) o.castShadow = false; });
-    if (!opt.noCockpit && !spec.rocket) addCockpit(m, spec);
-    if (FULL) G.poseAircraft(m, REST, 0);
+    if (!opt.noCockpit && !spec.rocket && !spec.car) addCockpit(m, spec);
+    if (FULL && !spec.car) G.poseAircraft(m, REST, 0);
     return m;
   };
 
@@ -1084,6 +1131,18 @@
     // a merged mesh that still parents live parts keeps its node but draws nothing
     gone.forEach((o) => { if (o.children.length) { o.material = HIDDEN; return; } let p = o.parent; p.remove(o); while (p && p !== root && !p.children.length && !kept.has(p) && !p.isMesh) { const pp = p.parent; if (pp) pp.remove(p); p = pp; } });
     return root;
+  };
+
+  // an advertising / surveillance airship: envelope, gondola, cruciform fins and two engine pods
+  G.buildBlimp = function (hex, stripe) {
+    const g = new T.Group(), env = std(hex, 0.15, 0.55), st = std(stripe, 0.15, 0.55), dk = std(0x2a2d31, 0.4, 0.6), wh = std(0xe9ecee, 0.2, 0.5);
+    g.add(fus([[-31, 0], [-30, 2.2], [-26, 5.6], [-18, 8.4], [-6, 9.6], [6, 9.4], [18, 7.2], [26, 4.2], [31, 0.6]], 1, 1, env, 28));
+    g.add(fus([[-6.2, 9.62], [6.2, 9.44]], 1, 1, st, 28));
+    g.add(at(box(3.2, 2.6, 11, wh), 0, -10.4, -3)); g.add(at(box(3.3, 0.9, 7, M.window), 0, -9.9, -4.4)); g.add(at(box(0.5, 1.2, 0.5, dk), 0, -12.3, -5));
+    [0, 1, 2, 3].forEach((k) => { const piv = new T.Group(); piv.rotation.z = k * Math.PI / 2 + Math.PI / 4; const f = new T.Mesh(finG([[19, 3.4], [23.5, 10.5], [29, 10.5], [29.5, 2.2]], 0.5), k % 2 ? st : env); piv.add(f); g.add(piv); });
+    [1, -1].forEach((sd) => { g.add(at(cyl(0.9, 0.7, 3.2, dk), sd * 4.2, -9.6, 2)); g.add(at(box(2.6, 0.3, 0.6, dk), sd * 2.6, -9.6, 2)); const pr = at(cyl(1.9, 1.9, 0.12, new T.MeshBasicMaterial({ color: 0x9aa0a6, transparent: true, opacity: 0.25, depthWrite: false })), sd * 4.2, -9.6, 3.8); g.add(pr); });
+    g.traverse((o) => { if (o.isMesh) o.castShadow = false; });
+    return G.flattenModel(g, []);
   };
 
   G.buildBomb = function (w) {

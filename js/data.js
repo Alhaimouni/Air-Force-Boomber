@@ -231,6 +231,29 @@ window.G = {};
       stats: 'Mach 0.95 · 16 × B61/B83 · 4 × F118-GE-100'
     }
     ,{
+      // the fastest air-breathing crewed aircraft ever flown: Mach 3.3 at 85,000 ft
+      id: 'sr71', name: 'SR-71A Blackbird', role: 'Mach 3 strategic reconnaissance', origin: 'USA', price: 1500000,
+      mass: 62000, S: 170, span: 16.94, length: 32.74,
+      thrustDry: 220000, thrustAB: 480000, machThrust: 0.7,
+      CL0: 0.04, CLa: 2.7, alphaStall: 0.42, flapCL: 0.05, CD0: 0.0115, k: 0.1, CDw: 0.012,
+      maxG: 3.2, minG: -1, rollRate: 1.5, pitchRate: 0.34, yawRate: 0.12, tauRoll: 0.3, tauPitch: 0.4,
+      qRef: 6000, machLimit: 3.3, ceiling: 26000, gearH: 2.5, maxRot: 0.2, sinkLimit: 5, spool: 0.4,
+      weapons: [], flares: 24,
+      cam: { dist: 52, height: 9, cockpit: [0, 1.05, -10.9] },
+      sound: { whine: [400, 1500, 0.03, 'sawtooth'], roar: [620, 0.7], rumble: [100, 0.9], ab: 1.5 },
+      stats: 'Mach 3.3 · 85,000 ft · unarmed · 2 × J58 turbo-ramjets'
+    }
+    ,{
+      id: 'car', name: 'Falcon GT Sports Car', role: 'Road car — drive it anywhere', origin: 'Jordan', price: 0, civil: true, car: true,
+      mass: 1500, S: 2, span: 2.0, length: 4.5, thrustDry: 0, thrustAB: 0,
+      vmax: 88, accel: 9.5, wheelbase: 2.7, track: 1.6, wheelR: 0.34,
+      maxG: 1.2, rollRate: 1, machLimit: 0.3, ceiling: 1e9, gearH: 0.34,
+      weapons: [], flares: 0,
+      cam: { dist: 9.5, height: 5.5, cockpit: [-0.37, 0.68, 0.32] },
+      sound: { whine: [90, 520, 0.05, 'sawtooth'], roar: [240, 0.35], rumble: [70, 0.5], ab: 0 },
+      stats: '300 km/h · W/S drive and brake · A/D steer · B handbrake'
+    }
+    ,{
       id: 'rocket', name: 'Artemis Moon Rocket', role: 'Space launch vehicle', origin: 'USA', price: 2000000, civil: true, rocket: true,
       mass: 560000, S: 80, span: 16, length: 72, thrustDry: 14000000, thrustAB: 0,
       dryMass: 60000, fuelMass: 500000, thrust: 14000000, isp: 1100, cdA: 32,
