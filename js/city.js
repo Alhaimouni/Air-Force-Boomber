@@ -366,7 +366,7 @@
     gb.add(new T.BoxGeometry(7, 4.5, 0.6), 15, 11.5, 9, 1, 1, 1, g2, -0.3, 0.6, 0);
     gb.box(-14, 0.5, -8, 5, 3.4, 9, g1);
     const b = world.addBuilding(gb, x, 0, z, { name: 'SAM site', kind: 'sam', hp: 1.3, value: 60000 });
-    const site = { x, z, y: 9, alive: true, cool: 6 + Math.random() * 6, b, city: city || 'New York' };
+    const site = { x, z, y: 9, alive: true, cool: 6 + Math.random() * 6, b, city: city || G.CITIES[0].name };
     b.sam = site; world.sams.push(site);
   }
 
@@ -854,7 +854,7 @@
   function buildCityGeneric(world, c) {
     setStyle(c.style); R = G.rng(c.seed);
     const group = new T.Group(); world.addCityGroup(c, group); world.curGroup = group;
-    const slabs = new GB(), n = Math.ceil(c.r / BS), res = reserve(LANDMARKS[c.name] || []);
+    const slabs = new GB(), n = Math.ceil(c.r / BS), res = reserve(LANDMARKS[c.key] || []);
     baseDisc(group, c);
     for (let gx = -n; gx <= n; gx++) for (let gz = -n; gz <= n; gz++) {
       const x = c.x + gx * BS, z = c.z + gz * BS, dn = G.cityDn(c, x, z);
@@ -868,7 +868,7 @@
       else if (R.chance(c.ind != null ? c.ind : c.town ? 0.12 : 0)) indBlock(slabs, x, z);
       else resBlock(slabs, x, z);
     }
-    (EXTRAS[c.name] || []).forEach((e) => landmarkAt(null, e, c.x + e.dx, c.z + e.dz, 0));
+    (EXTRAS[c.key] || []).forEach((e) => landmarkAt(null, e, c.x + e.dx, c.z + e.dz, 0));
     const sm = new T.Mesh(slabs.build(), world.cityMat); sm.receiveShadow = true; group.add(sm);
     if (!c.town) for (let i = 0; i < 3; i++) { const a = c.seed + i * 2.094; const p = G.cityEdge(c, a, 380); samSite(world, p[0], p[1], c.name); }
     world.curGroup = null;

@@ -49,6 +49,14 @@
     { name: 'Madaba', x: -51500, z: 41500, r: 850, seed: 25, style: 'levant', town: true, core: 0, mid: 0.2, hmax: 30, hmid: 14, tallP: 0, ind: 0 },
     { name: 'Petra', x: -56000, z: 50500, r: 950, seed: 23, style: 'levant', town: true, green: 0.22, core: 0, mid: 0.25, hmax: 30, hmid: 14, tallP: 0, ind: 0 }
   ];
+  // The cities carry invented names. `key` keeps the original label, which the map layout, landmarks and roads are keyed by.
+  const CITY_NAMES = {
+    'New York': 'Meridian City', Westfield: 'Ashford Vale', Northpoint: 'Kestrel Bay', London: 'Greyhaven', Paris: 'Belmont-sur-Lune',
+    Dubai: 'Zahrat al-Rimal', Cairo: 'Qasr an-Nahar', Amman: 'Al-Qamar', Zarqa: 'Wadi Azraq', Irbid: 'Tel Saraya', Jerash: 'Bayt Arwa',
+    Madaba: 'Mozaica', Petra: 'Wadi Firuz'
+  };
+  CITIES.forEach((c) => { c.key = c.name; c.name = CITY_NAMES[c.key] || c.name; });
+  const cityByKey = G.cityByKey = (k) => CITIES.find((c) => c.key === k);
   function cityS(c, a) {
     const sd = c.seed || 5, n = fbm(Math.cos(a) * 1.5 + sd * 1.37 + 20, Math.sin(a) * 1.5 + sd * 0.71 + 20, 3);
     return clamp(0.52 + (n - 0.28) * 1.25, 0.48, 1);
@@ -442,7 +450,7 @@
       wiggle(LAKES[0].x, LAKES[0].z, 9000, -26000, 2200, 31); wiggle(LAKES[1].x, LAKES[1].z, 8500, 9000, 3000, 37); wiggle(LAKES[4].x, LAKES[4].z, 9500, -52000, 2600, 41);
       wiggle(-57200, 15500, LAKES[12].x, LAKES[12].z - 1500, 1100, 53); // the River Jordan runs down to the Dead Sea
       lx.strokeStyle = '#ff0000'; lx.lineWidth = 1.1; // highways between cities
-      const cityXY = (n) => { if (typeof n !== 'string') return n; const c = CITIES.find((q) => q.name === n); return [c.x, c.z]; };
+      const cityXY = (n) => { if (typeof n !== 'string') return n; const c = cityByKey(n); return [c.x, c.z]; };
       [['New York', 'Westfield'], ['Westfield', 'Paris'], ['New York', 'Northpoint'], ['Northpoint', 'London'], ['London', 'Paris'], ['Westfield', 'Cairo'], ['Cairo', 'Dubai'], ['Cairo', 'Amman'], ['Paris', 'Amman']]
         .concat([['London', 'Amman'], ['Northpoint', 'Paris'], ['Dubai', 'New York']])
         .concat([['Amman', 'Zarqa'], ['Amman', 'Jerash'], ['Jerash', 'Irbid'], ['Zarqa', 'Irbid'], ['Amman', 'Madaba'], ['Madaba', 'Petra'], ['Amman', [-42500, 40300]], ['Petra', 'Cairo'], ['Zarqa', 'Cairo'], ['Irbid', 'Westfield'], ['Paris', 'Westfield'], ['London', 'New York']]).forEach((p, i) => {
@@ -605,7 +613,7 @@
       [-1700, -600, 600, 1700].forEach((z) => slab(30, 130, z - 15, z + 15));
       slab(160, 560, -480, 480);
       if (main) { slab(-410, -390, -4200, 1200, this.roadMat); slab(-390, 130, 1185, 1200, this.roadMat); }
-      else if (!ap.noLink) { const t = CITIES.find((c) => c.name === ap.city), tx = t.x - ox; if (tx > 0) slab(560, tx - t.r, -410, -395, this.roadMat); else slab(tx + t.r, -42, -210, -195, this.roadMat); }
+      else if (!ap.noLink) { const t = cityByKey(ap.city), tx = t.x - ox; if (tx > 0) slab(560, tx - t.r, -410, -395, this.roadMat); else slab(tx + t.r, -42, -210, -195, this.roadMat); }
       // lights
       const lp = [], lc = [];
       const L = (x, z, r, g, b) => { lp.push(x + ox, 0.5, z + oz); lc.push(r, g, b); };
@@ -1122,7 +1130,7 @@
         const h = ok(x, z); if (h < 0) continue; const s = r.range(2, 9) * (r.chance(0.08) ? 3 : 1);
         put(s > 12 ? 'boulder' : 'rock', x, h - s * 0.15, z, s * r.range(0.8, 1.4), s * r.range(0.7, 1.5), s * r.range(0.8, 1.4), r() * 6.28, r.pick([0xb89a70, 0xa8845c, 0xc4a57c, 0x9a7654, 0xb08060]));
       }
-      const jordan = (n) => CITIES.find((c) => c.name === n);
+      const jordan = cityByKey;
       // sandstone mesas ring Petra, standing in for the mountains the valley is cut into
       { const c = jordan('Petra');
         for (let i = 0; i < 150; i++) {
@@ -1145,7 +1153,7 @@
       [[-55600, 36000], [-55700, 39500], [-55900, 42300], [-56000, 34500]].forEach((p) => { for (let i = 0; i < 6; i++) grove(p[0] + r.range(-500, 500), p[1] + r.range(-800, 800), 'palm', 5, 5, 11, [0xffffff, 0xe0ecd8]); });
       // irrigated circles and field strips on the flat desert plains, plus plastic greenhouses
       const GREENS = [0x4f7a34, 0x5f8a3a, 0x3f6a2c, 0x7a9a48, 0x9a8a50, 0x6a5a3a];
-      const flats = CITIES.filter((c) => desertF(c.x, c.z) > 0.5 && c.name !== 'Petra').map((c) => [c.x, c.z, c.r + 3100]).concat(AIRPORTS.filter((a) => desertF(a.x, a.z) > 0.5).map((a) => [a.x, a.z, 5600]));
+      const flats = CITIES.filter((c) => desertF(c.x, c.z) > 0.5 && c.key !== 'Petra').map((c) => [c.x, c.z, c.r + 3100]).concat(AIRPORTS.filter((a) => desertF(a.x, a.z) > 0.5).map((a) => [a.x, a.z, 5600]));
       // every flat piece claims its rectangle, so no two ever overlap (overlapping coplanar pieces flicker) and none covers a highway
       const claims = new Map(), CL = 500, roadCells = new Set();
       (this.roadPaths || []).forEach((pts) => { for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1], n = Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 20); for (let k = 0; k <= n; k++) roadCells.add(Math.floor((a.x + (b.x - a.x) * k / n) / 40) + ',' + Math.floor((a.z + (b.z - a.z) * k / n) / 40)); } });

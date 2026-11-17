@@ -738,7 +738,7 @@
     const L = curLevel(), cities = missionCities(L, save.mCities), city = cities[0];
     // depart from an airfield that does not belong to the target
     let ap = save.startAp;
-    const bad = (i) => i < G.AIRPORTS.length && ((G.AIRPORTS[i].city || 'New York') === city.name);
+    const bad = (i) => i < G.AIRPORTS.length && ((G.AIRPORTS[i].city || 'New York') === city.key);
     if (bad(ap)) ap = [1, 0, 2, 3, 4, 5].find((i) => !bad(i));
     g.forceAp = ap;
     startFlight(false);
@@ -784,7 +784,7 @@
         m.left = left;
         if (left > 0) { msg('Defence site destroyed — ' + left + ' left', 'big'); updateObjective(); }
         else {
-          const nx = m.cities[m.idx + 1], ok = G.AIRPORTS.filter((ap) => (ap.city || 'New York') !== m.city.name && !(nx && (ap.city || 'New York') === nx.name));
+          const nx = m.cities[m.idx + 1], ok = G.AIRPORTS.filter((ap) => (ap.city || 'New York') !== m.city.key && !(nx && (ap.city || 'New York') === nx.key));
           m.rtb = ok[Math.floor(Math.random() * ok.length)]; m.phase = 'rtb';
           earn(Math.round(g.diff.reward * 0.4), 'All defences of ' + m.city.name + ' destroyed');
           msg((nx ? 'Land at ' + m.rtb.name + ' to refuel and rearm for ' + nx.name : 'Return to base: land at ' + m.rtb.name), 'big'); updateObjective();
