@@ -839,6 +839,18 @@
       if (G.fx) G.fx.addEmitter({ x: b.x, y: b.top * 0.7, z: b.z, size: Math.min(30, 8 + b.hw * 0.4), life: 50, fire: 12 });
     }
 
+    // blacken a building's walls round one point (fire and smoke staining), leaving the rest of it as it was
+    scorchAt(b, p, r) {
+      const stain = (attrPos, attrCol, s0, n, ox, oy, oz) => {
+        const P = attrPos.array, C = attrCol.array; let any = false;
+        for (let i = s0; i < s0 + n; i++) { const dx = P[i * 3] - ox, dy = (P[i * 3 + 1] - oy) * 0.6, dz = P[i * 3 + 2] - oz, d = Math.hypot(dx, dy < 0 ? dy * 2 : dy, dz); if (d > r) continue; // soot climbs: reach further up than down
+          const k = 0.16 + 0.84 * (d / r) * (d / r); C[i * 3] *= k; C[i * 3 + 1] *= k; C[i * 3 + 2] *= k; any = true; }
+        if (any) { if (attrCol.addUpdateRange && n * 3 < C.length) attrCol.addUpdateRange(s0 * 3, n * 3); attrCol.needsUpdate = true; }
+      };
+      if (b.mesh) { const g = b.mesh.geometry; if (g.attributes.color) stain(g.attributes.position, g.attributes.color, 0, g.attributes.position.count, p.x - b.ox0, p.y - b.oy0, p.z - b.oz0); }
+      else if (b.bm) [0, 1, 2].forEach((k) => { if (b.bm[k] && b.rg[k] && b.rg[k][1]) { const g = b.bm[k].geometry; stain(g.attributes.position, g.attributes.color, b.rg[k][0], b.rg[k][1], p.x - b.bx, p.y, p.z - b.bz); } });
+    }
+
     // from: blast position; tall slender buildings hit off-centre may topple away from it
     destroy(b, delay, from) {
       if (!b.alive) return;

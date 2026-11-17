@@ -241,6 +241,58 @@
       this.pendingShake = { t: d / 450, a: clamp(9000 / (d + 500), 0.3, 2.5) };
     }
 
+    // An aircraft flying into a building. Unlike a bomb this is a fuel fire with momentum: the fireball bursts back out
+    // of the entry wound and rolls up the facade, a jet of flame and wreckage is punched out of the far side along the
+    // line of flight, pulverised concrete and glass rain down, and the floors it hit go on burning under black smoke.
+    planeImpact(p, vel, span, mass, camPos) {
+      const V = Math.hypot(vel.x, vel.y, vel.z) || 1, dx = vel.x / V, dy = vel.y / V, dz = vel.z / V, f = this.fire, sm = this.smoke, rnd = Math.random;
+      const s = clamp(span / 12, 0.8, 3.4), k = clamp(Math.sqrt(mass / 12000), 0.8, 5), y = Math.max(p.y, 2), wx = -dz, wz = dx, half = span * 0.42, q = this.quality || 1;
+      const N = (n) => Math.max(4, Math.round(n * Math.min(1.3, q) * Math.min(2, 0.7 + k * 0.3)));
+      const ball = new T.Mesh(this.ballGeo, new T.MeshBasicMaterial({ color: 0xffe2a8, transparent: true, opacity: 1, fog: false, depthWrite: false }));
+      ball.position.set(p.x - dx * 5, y, p.z - dz * 5); this.scene.add(ball); this.balls.push({ m: ball, t: 0, R: 13 * s, dur: 1.5 + 0.3 * s, rise: 10, grow: 0.3 });
+      for (let i = 0; i < N(16); i++) { // the instant of impact: a white-hot flash across the wingspan
+        const o = (rnd() - 0.5) * 2 * half, a = rnd() * 6.283, sp = 20 + rnd() * 40;
+        f.spawn(p.x + wx * o, y + (rnd() - 0.5) * 3, p.z + wz * o, Math.cos(a) * sp - dx * 20, rnd() * 30, Math.sin(a) * sp - dz * 20, 0.25 + rnd() * 0.4, 6 * s, 24 * s, 1, 0.9, 0.65, 1, 3.5, 0);
+      }
+      for (let i = 0; i < N(46); i++) { // fuel fireball blowing back out of the hole and climbing the wall
+        const o = (rnd() - 0.5) * 2 * half, back = 8 + rnd() * 34;
+        f.spawn(p.x + wx * o - dx * 3, y + (rnd() - 0.5) * 5, p.z + wz * o - dz * 3, -dx * back + (rnd() - 0.5) * 16, 6 + rnd() * 26, -dz * back + (rnd() - 0.5) * 16, 1.1 + rnd() * 1.5, 9 * s, 40 * s, 1, 0.48, 0.12, 0.85, 1.1, -6);
+      }
+      for (let i = 0; i < N(30); i++) { // flame and burning fuel punched through and out of the far side
+        const sp = V * (0.22 + rnd() * 0.5), o = (rnd() - 0.5) * 2 * half * 0.7;
+        f.spawn(p.x + wx * o, y + (rnd() - 0.5) * 4, p.z + wz * o, dx * sp + (rnd() - 0.5) * 22, dy * sp + rnd() * 16, dz * sp + (rnd() - 0.5) * 22, 0.7 + rnd() * 1.1, 8 * s, 30 * s, 1, 0.55, 0.16, 0.85, 1.6, 2);
+      }
+      for (let i = 0; i < N(60); i++) { // burning fragments arcing away and falling
+        const a = rnd() * 6.283, sp = 12 + rnd() * 60, fw = rnd() * V * 0.35;
+        f.spawn(p.x, y, p.z, Math.cos(a) * sp + dx * fw, 8 + rnd() * 50, Math.sin(a) * sp + dz * fw, 1.6 + rnd() * 2.4, 1.5 * s, 0.5 * s, 1, 0.78, 0.4, 1, 0.2, 16);
+      }
+      for (let i = 0; i < N(40); i++) { // thick black fuel smoke boiling upward
+        const o = (rnd() - 0.5) * 2 * half, g = 0.03 + rnd() * 0.07;
+        sm.spawn(p.x + wx * o - dx * rnd() * 8, y + rnd() * 8, p.z + wz * o - dz * rnd() * 8, -dx * rnd() * 10 + (rnd() - 0.5) * 8, 7 + rnd() * 16, -dz * rnd() * 10 + (rnd() - 0.5) * 8, 10 + rnd() * 10, 13 * s, 70 * s, g, g, g, 0.9, 0.4, -0.8);
+      }
+      for (let i = 0; i < N(34); i++) { // pulverised concrete and plaster: a pale cloud thrown out and sinking
+        const a = rnd() * 6.283, sp = 10 + rnd() * 34, g = 0.62 + rnd() * 0.18, fw = (rnd() - 0.3) * V * 0.25;
+        sm.spawn(p.x, y + (rnd() - 0.5) * 6, p.z, Math.cos(a) * sp + dx * fw, (rnd() - 0.4) * 14, Math.sin(a) * sp + dz * fw, 5 + rnd() * 6, 7 * s, 42 * s, g, g * 0.96, g * 0.9, 0.55, 1.2, 1.5);
+      }
+      for (let i = 0; i < N(70); i++) { // glass and paper glittering down the face of the building
+        const a = rnd() * 6.283, sp = 6 + rnd() * 30, g = 0.82 + rnd() * 0.18;
+        sm.spawn(p.x + wx * (rnd() - 0.5) * 2 * half, y + (rnd() - 0.5) * 8, p.z + wz * (rnd() - 0.5) * 2 * half, Math.cos(a) * sp - dx * 6, 4 + rnd() * 18, Math.sin(a) * sp - dz * 6, 6 + rnd() * 7, 0.55, 0.8, g, g, g * 0.97, 0.9, 0.9, 3.2);
+      }
+      // masonry dropping from the wound, and the aircraft's own wreckage carrying on through
+      for (let i = 0; i < Math.round(8 + 4 * s); i++) this.chunks.spawn(p.x + wx * (rnd() - 0.5) * 2 * half - dx * 2, y + (rnd() - 0.5) * 4, p.z + wz * (rnd() - 0.5) * 2 * half - dz * 2, -dx * rnd() * 9 + (rnd() - 0.5) * 8, rnd() * 6, -dz * rnd() * 9 + (rnd() - 0.5) * 8, 1.1 * Math.sqrt(s));
+      for (let i = 0; i < Math.round(7 + 5 * s); i++) { const sp = V * (0.18 + rnd() * 0.45); this.chunks.spawn(p.x, y, p.z, dx * sp + (rnd() - 0.5) * 18, dy * sp + rnd() * 14, dz * sp + (rnd() - 0.5) * 18, (0.7 + rnd() * 0.9) * Math.sqrt(s)); }
+      // the fire that stays: the floors that were hit, fed by the fuel, with secondary fires along the wing line and below
+      this.addEmitter({ x: p.x, y, z: p.z, size: 7 + 4 * s, life: 150, fire: 100 });
+      this.addEmitter({ x: p.x + wx * half * 0.6, y: y + 2, z: p.z + wz * half * 0.6, size: 4 + 2 * s, life: 110, fire: 70 });
+      this.addEmitter({ x: p.x - wx * half * 0.6, y: y - 2, z: p.z - wz * half * 0.6, size: 4 + 2 * s, life: 110, fire: 70 });
+      this.addEmitter({ x: p.x + dx * Math.min(18, 6 + span * 0.4), y: y + 1, z: p.z + dz * Math.min(18, 6 + span * 0.4), size: 5 + 2 * s, life: 120, fire: 80 });
+      if (y > 14) this.addEmitter({ x: p.x - dx * 9, y: 2, z: p.z - dz * 9, size: 4 + 2 * s, life: 70, fire: 40 }); // burning wreckage in the street below
+      this.ring(p, 60 + 30 * s, 300, 0xffffff, 0.3);
+      this.light(p, 6000 * s * s, 1.4);
+      const d = camPos ? camPos.distanceTo(p) : 500;
+      this.shake = Math.max(this.shake, clamp(s * k * 90 / (d + 30), 0.3, 1.6)); this.flash = Math.max(this.flash, clamp(60 * s / (d + 40), 0, 0.5));
+    }
+
     // throw n chunks outward from a point
     debris(x, y, z, n, speed, size) {
       for (let i = 0; i < n; i++) {

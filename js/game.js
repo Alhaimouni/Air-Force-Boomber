@@ -266,7 +266,7 @@
     g.ammo = s.weapons.map((w) => ({ def: G.WEAPONS[w.type], count: w.count, max: w.count })); g.weaponIdx = 0; g.flares = s.flares;
     g.state = 'fly'; g.time = 0; g.sortie = 0; g.hasFlown = !!air; g.view = 0; g.camYaw = 0; g.camPitch = 0; g.zoom = 1; g.dropT = 0; g.flareT = 0; g.passT = 0; g.deadT = 0;
     g.gearPrev = g.flight.gear; g.flapPrev = g.flight.flaps; g.flapSet = g.flight.flapsTarget; g.hotBrakes = false; g.flapOverMsg = false; g.gearMove = g.flapMove = false; g.bump = 0; g.buffet = 0; g.headY = 0; g.gearWarn = false; g.squealT = 0;
-    g.hasFlownMission = false; $('btnAgain').textContent = 'Fly again'; g.helpHidden = false; g.camFwd = new V3(0, 0, -1); g.model.visible = true; g.shock = null; g.samGrace = 25;
+    g.deadCam = null; g.hasFlownMission = false; $('btnAgain').textContent = 'Fly again'; g.helpHidden = false; g.camFwd = new V3(0, 0, -1); g.model.visible = true; g.shock = null; g.samGrace = 25;
     g.missiles.forEach((m) => scene.remove(m.mesh)); g.missiles.length = 0;
     clearMission(); g.diff = diffFor(curLevel()); g.flakT = 3; g.flakBursts = [];
     $('hangar').classList.add('hidden'); $('summary').classList.add('hidden'); $('pause').classList.add('hidden'); $('flightUI').classList.remove('hidden');
@@ -960,6 +960,15 @@
       _q.setFromAxisAngle(Y, g.camYaw); _q2.setFromAxisAngle(X, g.camPitch);
       camera.quaternion.copy(mq).multiply(_q).multiply(_q2);
       camera.fov = clamp(72 * Math.sqrt(g.zoom), 30, 100); camera.near = 0.04;
+    } else if (g.state === 'dead' && g.deadCam) {
+      // after a building strike the camera hangs back on the line the aircraft flew in on (known to be clear air) and
+      // slowly pulls away and up, so the fire and any collapse stay in view instead of the view circling into a wall
+      const c = g.deadCam; c.d = Math.min(c.max, c.d + dt * (c.d < c.d0 ? 60 : 7)); c.h += dt * 2.2;
+      camera.position.copy(c.look).addScaledVector(c.dir, -c.d); camera.position.y += c.h;
+      const gh = g.world.groundHeight(camera.position.x, camera.position.z) + 3; if (camera.position.y < gh) camera.position.y = gh;
+      camera.up.set(0, 1, 0); camera.lookAt(c.look.x, c.look.y - Math.min(c.drop, (c.d - c.d0) * 0.25), c.look.z);
+      camera.fov = 58; camera.near = 1;
+      camera.position.x += (Math.random() - 0.5) * shake; camera.position.y += (Math.random() - 0.5) * shake; camera.position.z += (Math.random() - 0.5) * shake;
     } else {
       g.camFwd.lerp(_fwd, 1 - Math.exp(-4 * dt)).normalize();
       let by = Math.atan2(-g.camFwd.x, -g.camFwd.z), bp = Math.asin(clamp(g.camFwd.y, -1, 1));
@@ -983,11 +992,35 @@
     fx.setScale(g.H, camera.fov);
   }
 
+  // The aircraft has flown into a building. What happens to the building depends on how heavy and fast the aircraft was
+  // and how big the building is: a house is flattened; a tower hit by a fighter burns on the floors that were struck;
+  // a tower hit by something heavy burns, then its structure gives way and it comes down.
+  function buildingStrike(b) {
+    const f = g.flight, w = g.world, s = g.spec, V = Math.max(f.V, 40), mass = s.rocket ? s.dryMass + s.fuelMass * f.fuel : s.mass, tall = b.top > 45;
+    g.bldHit = true;
+    { const hv = Math.hypot(f.vel.x, f.vel.z) || 1, dir = new V3(f.vel.x / hv, 0, f.vel.z / hv), d0 = 70 + s.span * 2.2; // how far back the wreck camera settles
+      g.deadCam = { look: f.pos.clone(), dir, d: Math.min(d0, s.cam.dist), d0, max: d0 + 190, h: 6, drop: Math.min(f.pos.y * 0.5, 60) }; }
+    G.fx.planeImpact(f.pos, f.vel, s.span, mass, camera.position);
+    G.audio.explosion(camera.position.distanceTo(f.pos), clamp(1 + Math.sqrt(mass / 12000) * 0.35, 1.2, 2.6));
+    w.blast(f.pos, 12 + s.span * 0.25, 0.35); // windows and small structures right at the point of entry
+    if (!b.alive) return;
+    b.hp -= Math.sqrt(mass / 12000) * (V / 150) * 1.1;
+    if (b.hp <= 0) w.destroy(b, tall ? 3 + Math.random() * 3 : 0.35, tall ? null : f.pos); // a tower stands for a few seconds before it goes
+    else {
+      w.scorchAt(b, f.pos, 16 + s.span * 0.9);
+      if (!tall && !b.scorched) w.scorch(b);
+      if (tall && b.hp / b.maxHp < 0.5) { w.destroy(b, 15 + Math.random() * 12, null); setTimeout(() => { if (g.state === 'dead') msg('The fire has weakened the structure — the tower is coming down', 'bad'); }, 9000); }
+    }
+  }
+
   function finishSortie(reason) {
     g.state = 'dead'; g.deadT = 0; g.model.visible = false;
     const f = g.flight;
-    G.fx.explosion(f.pos, 55, camera.position); G.audio.explosion(camera.position.distanceTo(f.pos), 1.5);
-    G.fx.addEmitter({ x: f.pos.x, y: Math.max(1, g.world.groundHeight(f.pos.x, f.pos.z) + 1), z: f.pos.z, size: 10, life: 40, fire: 20 });
+    if (g.bldHit) g.bldHit = false; // the strike on the building has already made its own fireball and fires
+    else {
+      G.fx.explosion(f.pos, 55, camera.position); G.audio.explosion(camera.position.distanceTo(f.pos), 1.5);
+      G.fx.addEmitter({ x: f.pos.x, y: Math.max(1, g.world.groundHeight(f.pos.x, f.pos.z) + 1), z: f.pos.z, size: 10, life: 40, fire: 20 });
+    }
     if (document.pointerLockElement) document.exitPointerLock();
     if (g.mission) g.mission.phase = 'failed';
     const md = g.mode;
@@ -1047,7 +1080,7 @@
       f.events.length = 0;
       if (!f.crashed) {
         const hit = w.collide(f.pos, g.spec.span * 0.28);
-        if (hit) { f.crash('Flew into ' + (hit.name ? 'the ' + hit.name : 'a building')); w.blast(f.pos, 30, 0.8); }
+        if (hit) { f.crash('Flew into ' + (hit.name ? 'the ' + hit.name : 'a building')); buildingStrike(hit); }
       }
       if (g.spec.rocket && !f.crashed) {
         if (!g.spaceDone && f.pos.y > 100000) { g.spaceDone = true; earn(250000, 'Crossed the Kármán line — you are in space'); }
@@ -1094,6 +1127,7 @@
     setOp(elVig, g.state === 'fly' ? g.vig : 0);
     if (g.state === 'fly') { G.drawHUD(g); panelT -= dt; if (cockpit && panelT <= 0) { panelT = 0.1; G.drawPanel(g); } }
     else g.hctx.clearRect(0, 0, g.W, g.H);
+    const hudOn = g.state === 'fly'; if (hudC._on !== hudOn) { hudC._on = hudOn; hudC.style.visibility = hudOn ? 'visible' : 'hidden'; } // the symbology goes with the aircraft
   }
 
   // overlay opacities are only written when they actually change, so an idle overlay costs no style work
